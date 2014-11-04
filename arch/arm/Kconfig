@@ -316,6 +316,21 @@ config ARCH_MULTIPLATFORM
 	select MULTI_IRQ_HANDLER
 	select SPARSE_IRQ
 	select USE_OF
+	
+menuconfig ARCH_STM32
+	bool "STM32 family support"
+	depends on !MMU
+	select ARCH_REQUIRE_GPIOLIB
+	select ARM_NVIC
+	select AUTO_ZRELADDR
+	select CLKSRC_OF
+	select COMMON_CLK
+	select CPU_V7M
+	select GENERIC_CLOCKEVENTS
+	select NO_DMA
+	select NO_IOPORT_MAP
+	select SPARSE_IRQ
+	select USE_OF
 
 config ARCH_INTEGRATOR
 	bool "ARM Ltd. Integrator family"
@@ -966,6 +981,8 @@ source "arch/arm/mach-vt8500/Kconfig"
 source "arch/arm/mach-w90x900/Kconfig"
 
 source "arch/arm/mach-zynq/Kconfig"
+
+source "arch/arm/mach-stm32/Kconfig"
 
 # Definitions to make life easier
 config ARCH_ACORN

@@ -98,9 +98,9 @@ __v7m_setup:
 	str	r5, [r0, V7M_SCB_SHPR3]	@ set PendSV priority
 
 	@ SVC to run the kernel in this mode
-	adr	r1, BSYM(1f)
+	adr	r8, BSYM(1f)
 	ldr	r5, [r12, #11 * 4]	@ read the SVC vector entry
-	str	r1, [r12, #11 * 4]	@ write the temporary SVC vector entry
+	str	r8, [r12, #11 * 4]	@ write the temporary SVC vector entry
 	mov	r6, lr			@ save LR
 	mov	r7, sp			@ save SP
 	ldr	sp, =__v7m_setup_stack_top
@@ -112,8 +112,8 @@ __v7m_setup:
 	mov	sp, r7			@ restore SP
 
 	@ Special-purpose control register
-	mov	r1, #1
-	msr	control, r1		@ Thread mode has unpriviledged access
+	mov	r8, #1
+	msr	control, r8		@ Thread mode has unpriviledged access
 
 	@ Configure the System Control Register to ensure 8-byte stack alignment
 	@ Note the STKALIGN bit is either RW or RAO.

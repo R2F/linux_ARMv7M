@@ -1551,6 +1551,20 @@ config SERIAL_MEN_Z135
 
 	  This driver can also be build as a module. If so, the module will be called
 	  men_z135_uart.ko
+	  
+config SERIAL_STM32
+	tristate "STM32 Support"
+	select SERIAL_CORE
+	help
+	  Say yes here to enable support for
+	  
+config SERIAL_STM32_CONSOLE
+	bool "Console on STM32 UART"
+	depends on SERIAL_STM32=y
+	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
+	help
+	  Enable system Console on STM32 UART
 
 endmenu
 
