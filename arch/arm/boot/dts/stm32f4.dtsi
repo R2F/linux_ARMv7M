@@ -1,0 +1,21 @@
+#include "armv7-m.dtsi"
+
+/ {
+	aliases {
+		serial0 = &uart0;
+	};
+
+	soc {
+		uart0: uart@4000c000 { /* USART0 */
+			compatible = "stm32,stm32-usart";
+			reg = <0x4000c000 0x400>;
+			status = "disabled";
+		};
+		
+		timer0: timer@40010400 {
+			compatible = "stm32,timer";
+			reg = <0x40010400 0x400>;
+			interrupts = <28>;
+		};
+	};
+};

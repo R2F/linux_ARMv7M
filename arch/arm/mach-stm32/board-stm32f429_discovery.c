@@ -1,18 +1,16 @@
-/*
- * board-stm32f429_discovery.c
- *
- *  Created on: Sep 23, 2014
- *      Author: limak
- */
+#include <linux/kernel.h>
+
+#include <asm/v7m.h>
 
 #include <asm/mach/arch.h>
-#include <asm/mach-types.h>
 
-static void __init stm32_board_init(void )
-{
+static const char *const stm32_compat[] __initconst = {
+	"stm32,discovery",
+	NULL
+};
 
-}
-
-MACHINE_START(STM32F429_DISCO, "STM32F429 Discovery")
-	.init_machine	= stm32_board_init,
+DT_MACHINE_START(STM32DT, "STM32 (Device Tree Support)")
+	.dt_compat = stm32_compat,
+	.restart = armv7m_restart,
+	.nr_irqs = 64
 MACHINE_END

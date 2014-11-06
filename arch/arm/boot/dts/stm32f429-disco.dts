@@ -1,0 +1,22 @@
+/dts-v1/;
+#include "stm32f4.dtsi"
+
+/ {
+	model = "STM32F429 Discovery";
+	compatible = "stm32,discovery";
+
+	chosen {
+		bootargs = "init=/linuxrc ignore_loglevel ihash_entries=64 dhash_entries=64 earlyprintk root=/dev/mtdblock0";
+	};
+
+	memory {
+		reg = <0xD0000000 0x00800000>;
+	};
+	
+	soc {
+		uart0: uart@4000c000 {
+			location = <2>;
+			status = "ok";
+		};
+	};
+};
