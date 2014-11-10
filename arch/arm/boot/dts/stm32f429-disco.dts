@@ -6,7 +6,7 @@
 	compatible = "stm32,discovery";
 
 	chosen {
-		bootargs = "init=/linuxrc ignore_loglevel ihash_entries=64 dhash_entries=64 earlyprintk root=/dev/mtdblock0";
+		bootargs = "console=ttystm0,115200 root=initrd";
 	};
 
 	memory {

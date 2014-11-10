@@ -913,6 +913,11 @@ static int load_flat_binary(struct linux_binprm * bprm)
 	 * lib 1 first, then 2, ... and finally the main program (id 0).
 	 */
 	start_addr = libinfo.lib_list[0].entry;
+	/* TODO: ARMV7-M requires LSB to be set for branching
+	 * addresses. Fix this up in a proper way, for now
+	 * this is left dirty like this
+	 */
+	start_addr |= 1;
 
 #ifdef CONFIG_BINFMT_SHARED_FLAT
 	for (i = MAX_SHARED_LIBS-1; i>0; i--) {

@@ -16,6 +16,8 @@
 
 #define STM32_TIM2_BASE	0x40000000 /* APB1 */
 
+#define MIN_OSCR_DELTA 16
+
 struct stm32_tim2_5 {
 	uint32_t cr1;
 	uint32_t cr2;
@@ -57,7 +59,10 @@ static irqreturn_t stm32_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *evt = (struct clock_event_device *)dev_id;
 
-	STM32_TIMER->sr &= (~(1 << 0));
+	STM32_TIMER->sr &= (~(1 << 1));
+	STM32_TIMER->dier &= (~(1 << 1));
+
+	//printk("timer_int\n");
 
 	evt->event_handler(evt);
 
@@ -75,38 +80,48 @@ static struct clocksource gt_clocksource = {
 static void stm32_clkevt_mode(enum clock_event_mode mode,
 			      struct clock_event_device *clk)
 {
-//	switch (mode) {
-//	case CLOCK_EVT_MODE_PERIODIC:
-//		sun4i_clkevt_time_stop(0);
-//		sun4i_clkevt_time_setup(0, ticks_per_jiffy);
-//		sun4i_clkevt_time_start(0, true);
-//		break;
-//	case CLOCK_EVT_MODE_ONESHOT:
-//		sun4i_clkevt_time_stop(0);
-//		sun4i_clkevt_time_start(0, false);
-//		break;
-//	case CLOCK_EVT_MODE_UNUSED:
-//	case CLOCK_EVT_MODE_SHUTDOWN:
-//	default:
-//		sun4i_clkevt_time_stop(0);
-//		break;
-//	}
+	switch (mode) {
+	case CLOCK_EVT_MODE_PERIODIC:
+		printk("%s PERIODIC\n", __func__);
+		STM32_TIMER->dier &= ~(1 << 1);
+		break;
+	case CLOCK_EVT_MODE_ONESHOT:
+		printk("%s ONESHOT\n", __func__);
+		STM32_TIMER->dier &= ~(1 << 1);
+		break;
+	case CLOCK_EVT_MODE_UNUSED:
+	case CLOCK_EVT_MODE_SHUTDOWN:
+	default:
+		printk("%s default\n", __func__);
+		STM32_TIMER->dier &= ~(1 << 1);
+		break;
+	}
 }
 
 static int stm32_clkevt_next_event(unsigned long evt,
 				   struct clock_event_device *unused)
 {
-//	sun4i_clkevt_time_stop(0);
-//	sun4i_clkevt_time_setup(0, evt - TIMER_SYNC_TICKS);
-//	sun4i_clkevt_time_start(0, false);
+	unsigned long next, oscr;
 
-	return 0;
+
+	if(evt > 1000000) {
+		evt = 1000000;
+	}
+
+	STM32_TIMER->dier = (1 << 1);
+	next = STM32_TIMER->cnt + evt;
+	STM32_TIMER->ccr1 = next;
+	oscr = STM32_TIMER->cnt;
+
+	//printk("evt :%d clkevt_next_event next %d  oscr %d  psc %d\n", evt, next, oscr, STM32_TIMER->psc);
+
+	return (signed)(next - oscr) <= MIN_OSCR_DELTA ? -ETIME : 0;
 }
 
 static struct clock_event_device stm32_clockevent = {
 	.name = "stm32_tick",
 	.rating = 350,
-	.features = CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT,
+	.features = CLOCK_EVT_FEAT_ONESHOT,
 	.set_mode = stm32_clkevt_mode,
 	.set_next_event = stm32_clkevt_next_event,
 };
@@ -135,16 +150,19 @@ static void __init global_timer_of_register(struct device_node *np)
 	if (err)
 		pr_warn("failed to setup irq %d\n", 44);
 
-	clocksource_register_hz(&gt_clocksource, 1000000);
-	sched_clock_register(gt_clocksource_read2, 32, 1000000);
+	clocksource_register_hz(&gt_clocksource, 84000000);
+	sched_clock_register(gt_clocksource_read2, 32, 84000000);
 
 	clockevents_config_and_register(&stm32_clockevent,
-					1,
-					0xf, 0xffff);
+					84000000, MIN_OSCR_DELTA * 2, 0x7fffffff);
 
-	STM32_TIMER->arr = 1000000;
+	STM32_TIMER->cr1 = 0;
+	STM32_TIMER->arr = 0xFFFFFFFF - 1;
+	STM32_TIMER->psc = 0;
+	STM32_TIMER->cnt = 0;
 	STM32_TIMER->egr |= 1;
-	STM32_TIMER->dier = (1 << 0);
+	STM32_TIMER->cr1 |= 1;
+	STM32_TIMER->egr |= 1;
 
 	return;
 }

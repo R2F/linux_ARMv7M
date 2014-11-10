@@ -244,4 +244,6 @@
 /* SC16IS74xx */
 #define PORT_SC16IS7XX   108
 
+#define PORT_STM32	109
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */
