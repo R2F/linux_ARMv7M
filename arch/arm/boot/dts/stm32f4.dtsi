@@ -13,9 +13,9 @@
 			status = "disabled";
 		};
 		
-		timer0: timer@40010400 {
+		timer2: timer@40000000 {
 			compatible = "stm32,timer";
-			reg = <0x40010400 0x400>;
+			reg = <0x40000000 0x400>;
 			interrupts = <28>;
 		};
 	};

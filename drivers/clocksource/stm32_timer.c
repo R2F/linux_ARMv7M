@@ -12,70 +12,47 @@
 #include <linux/sched_clock.h>
 #include <linux/types.h>
 
-#include <asm/cputype.h>
+static void __iomem *timer_base;
 
-#define STM32_TIM2_BASE	0x40000000 /* APB1 */
+#define TEMPORARY_HZ_VAL	84000000
 
-#define MIN_OSCR_DELTA 16
+#define MIN_CCR_DELTA 16
 
-struct stm32_tim2_5 {
-	uint32_t cr1;
-	uint32_t cr2;
-	uint32_t smcr;
-	uint32_t dier;
-	uint32_t sr;
-	uint32_t egr;
-	uint32_t ccmr1;
-	uint32_t ccmr2;
-	uint32_t ccer;
-	uint32_t cnt;
-	uint32_t psc;
-	uint32_t arr;
-	uint32_t reserved1;
-	uint32_t ccr1;
-	uint32_t ccr2;
-	uint32_t ccr3;
-	uint32_t ccr4;
-	uint32_t reserved2;
-	uint32_t dcr;
-	uint32_t dmar;
-	uint32_t or;
-};
+#define TIMx_CR1	0x00
+#define TIMx_CR1_CEN	BIT(0)
 
-#define STM32_TIMER	((volatile struct stm32_tim2_5*)STM32_TIM2_BASE)
+#define TIMx_DIER	0x0C
+#define TIMx_DIER_CC1IE	BIT(1)
 
+#define TIMx_SR	0x10
+#define TIMx_SR_CC1IF	BIT(1)
 
-static cycle_t gt_clocksource_read(struct clocksource *cs)
+#define TIMx_EGR	0x14
+#define TIMx_EGR_UG	BIT(0)
+
+#define TIMx_CNT	0x24
+#define TIMx_PSC	0x28
+#define TIMx_ARR	0x2C
+#define TIMx_CCR1	0x34
+
+static u64 notrace stm32_timer_sched_read(void)
 {
-	return STM32_TIMER->cnt;
-}
-
-static cycle_t gt_clocksource_read2(void)
-{
-	return STM32_TIMER->cnt;
+	return readl(timer_base + TIMx_CNT);
 }
 
 static irqreturn_t stm32_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *evt = (struct clock_event_device *)dev_id;
 
-	STM32_TIMER->sr &= (~(1 << 1));
-	STM32_TIMER->dier &= (~(1 << 1));
-
-	//printk("timer_int\n");
+	writel(readl(timer_base + TIMx_SR) & (~TIMx_SR_CC1IF),
+			timer_base + TIMx_SR);
+	writel(readl(timer_base + TIMx_DIER) & (~TIMx_DIER_CC1IE),
+			timer_base + TIMx_DIER);
 
 	evt->event_handler(evt);
 
 	return IRQ_HANDLED;
 }
-
-static struct clocksource gt_clocksource = {
-	.name	= "stm32_timer",
-	.rating	= 300,
-	.read	= gt_clocksource_read,
-	.mask	= CLOCKSOURCE_MASK(32),
-	.flags	= CLOCK_SOURCE_IS_CONTINUOUS,
-};
 
 static void stm32_clkevt_mode(enum clock_event_mode mode,
 			      struct clock_event_device *clk)
@@ -83,17 +60,18 @@ static void stm32_clkevt_mode(enum clock_event_mode mode,
 	switch (mode) {
 	case CLOCK_EVT_MODE_PERIODIC:
 		printk("%s PERIODIC\n", __func__);
-		STM32_TIMER->dier &= ~(1 << 1);
 		break;
 	case CLOCK_EVT_MODE_ONESHOT:
 		printk("%s ONESHOT\n", __func__);
-		STM32_TIMER->dier &= ~(1 << 1);
 		break;
 	case CLOCK_EVT_MODE_UNUSED:
+		printk("%s UNUSED\n", __func__);
+		break;
 	case CLOCK_EVT_MODE_SHUTDOWN:
+		printk("%s SHUTDOWN\n", __func__);
+		break;
 	default:
 		printk("%s default\n", __func__);
-		STM32_TIMER->dier &= ~(1 << 1);
 		break;
 	}
 }
@@ -101,33 +79,25 @@ static void stm32_clkevt_mode(enum clock_event_mode mode,
 static int stm32_clkevt_next_event(unsigned long evt,
 				   struct clock_event_device *unused)
 {
-	unsigned long next, oscr;
+	unsigned long next;
 
+	next = readl(timer_base + TIMx_CNT) + evt;
+	writel(next, timer_base + TIMx_CCR1);
+	writel(TIMx_DIER_CC1IE, timer_base + TIMx_DIER);
 
-	if(evt > 1000000) {
-		evt = 1000000;
-	}
-
-	STM32_TIMER->dier = (1 << 1);
-	next = STM32_TIMER->cnt + evt;
-	STM32_TIMER->ccr1 = next;
-	oscr = STM32_TIMER->cnt;
-
-	//printk("evt :%d clkevt_next_event next %d  oscr %d  psc %d\n", evt, next, oscr, STM32_TIMER->psc);
-
-	return (signed)(next - oscr) <= MIN_OSCR_DELTA ? -ETIME : 0;
+	return 0;
 }
 
 static struct clock_event_device stm32_clockevent = {
 	.name = "stm32_tick",
-	.rating = 350,
+	.rating = 200,
 	.features = CLOCK_EVT_FEAT_ONESHOT,
 	.set_mode = stm32_clkevt_mode,
 	.set_next_event = stm32_clkevt_next_event,
 };
 
 static struct irqaction stm32_timer_irq = {
-	.name = "stm32_timer0",
+	.name = "stm32_timer2",
 	.flags = IRQF_TIMER | IRQF_IRQPOLL,
 	.handler = stm32_timer_interrupt,
 	.dev_id = &stm32_clockevent,
@@ -135,35 +105,45 @@ static struct irqaction stm32_timer_irq = {
 
 static void __init global_timer_of_register(struct device_node *np)
 {
-	struct clk *gt_clk;
-	int err = 0;
 	int irq;
 
-	printk("Registering stm32 timer\n");
-
-	irq = irq_of_parse_and_map(np, 0);
-	if (!irq) {
-		pr_err("failed to get irq for clockevent\n");
+	timer_base = of_iomap(np, 0);
+	if(!timer_base) {
+		pr_err("failed to map registers for clocksource\n");
+		goto err_iomap;
 	}
 
-	err = setup_irq(irq, &stm32_timer_irq);
-	if (err)
-		pr_warn("failed to setup irq %d\n", 44);
+	irq = irq_of_parse_and_map(np, 0);
+	if(!irq) {
+		pr_err("failed to get irq for clockevent\n");
+		goto err_get_irq;
+	}
 
-	clocksource_register_hz(&gt_clocksource, 84000000);
-	sched_clock_register(gt_clocksource_read2, 32, 84000000);
+	setup_irq(irq, &stm32_timer_irq);
+
+	writel(0, timer_base + TIMx_CR1);
+	writel(0xFFFFFFFF, timer_base + TIMx_ARR);
+	writel(0, timer_base + TIMx_PSC);
+	writel(0, timer_base + TIMx_CNT);
+
+	writel(readl(timer_base + TIMx_CR1) | TIMx_CR1_CEN,
+			timer_base + TIMx_CR1);
+
+	writel(readl(timer_base + TIMx_EGR) | TIMx_EGR_UG,
+			timer_base + TIMx_EGR);
+
+	clocksource_mmio_init(timer_base + TIMx_CNT, "stm32 timer",
+				TEMPORARY_HZ_VAL, 200, 32,
+				clocksource_mmio_readl_up);
+
+	sched_clock_register(stm32_timer_sched_read, 32, TEMPORARY_HZ_VAL);
 
 	clockevents_config_and_register(&stm32_clockevent,
-					84000000, MIN_OSCR_DELTA * 2, 0x7fffffff);
+				TEMPORARY_HZ_VAL, MIN_CCR_DELTA, 0xFFFFFFFF);
 
-	STM32_TIMER->cr1 = 0;
-	STM32_TIMER->arr = 0xFFFFFFFF - 1;
-	STM32_TIMER->psc = 0;
-	STM32_TIMER->cnt = 0;
-	STM32_TIMER->egr |= 1;
-	STM32_TIMER->cr1 |= 1;
-	STM32_TIMER->egr |= 1;
-
+err_get_irq:
+	iounmap(timer_base);
+err_iomap:
 	return;
 }
 
