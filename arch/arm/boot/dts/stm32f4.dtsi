@@ -1,8 +1,25 @@
+#include <dt-bindings/interrupt-controller/arm-gic.h>
 #include "armv7-m.dtsi"
+
+#define apb2clk_idx 2
+#define timerclk_idx 3
 
 / {
 	aliases {
 		serial0 = &uart0;
+		
+		gpioa = &gpio1;
+	};
+
+	cpus {
+		#size-cells = <0>;
+		#address-cells = <1>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m4";
+			reg = <0x0>;
+		};
 	};
 
 	soc {
@@ -17,6 +34,87 @@
 			compatible = "stm32,timer";
 			reg = <0x40000000 0x400>;
 			interrupts = <28>;
+			#clock-cells = <1>;
+			clocks = <&clks 1>;
+			/*clock-names = "timerclk";*/
+		};
+		
+		clks: rcc@40023800 {
+			compatible = "stm32,rcc";
+			reg = <0x40023800 0x400>;
+			interrupts = <5>;
+			#clock-cells = <1>;
+			sysclk-frequency = <168000000>;
+			/*
+			ahbclk-frequency = <168000000>;
+			apb1clk-frequency = <42000000>;
+			apb2clk-frequency = <84000000>;
+			*/
+			clock-output-names = "timerclk";
+			
+		};
+		
+		ahb1@40020000 { /* AHB1 bus 180MHz */
+			compatible = "simple-bus";
+			reg = <0x40020000 0x60000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			
+			/* peryferia */
+			gpio1: gpio@40020000 {
+				compatible = "stm32,stm32f4-gpio";
+				reg = <0x4002000 0x400>;
+				interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+		};
+		
+		ahb2@50000000 { /* AHB2 bus 180MHz */
+			compatible = "simple-bus";
+			reg = <0x50000000 0x60c00>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			
+			/* peryferia */
+		
+		};
+		
+		ahb3@60000000 { /* AHB3 bus 180MHz */
+			compatible = "simple-bus";
+			reg = <0x60000000 0x80000000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			
+			/* peryferia */
+		
+		};
+
+		apb1@40000000 { /* APB1 bus 45MHz */
+			compatible = "simple-bus";
+			reg = <0x40000000 0x8000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			
+			/* peryferia */
+		
+		};
+		
+		apb2@40010000 { /* APB2 bus 90MHz */
+			compatible = "simple-bus";
+			reg = <0x40010000 0x6c00>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			
+			/* peryferia */
+		
 		};
 	};
 };

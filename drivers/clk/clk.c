@@ -1157,7 +1157,7 @@ unsigned long clk_get_rate(struct clk *clk)
 
 	rate = __clk_get_rate(clk);
 	clk_prepare_unlock();
-
+printk("%s: returned %ldHZ",__func__,rate);
 	return rate;
 }
 EXPORT_SYMBOL_GPL(clk_get_rate);

@@ -108,7 +108,14 @@ config COMMON_CLK_PALMAS
 	---help---
 	  This driver supports TI Palmas devices 32KHz output KG and KG_AUDIO
 	  using common clock framework.
-
+	  
+config COMMON_CLK_STM32
+	bool "Clock driver for STM32" if !ARCH_STM32
+	depends on OF && ARM && (ARCH_STM32 || COMPILE_TEST)
+	default ARCH_STM32
+	help
+	  This driver sets the SYSCLK, AHB and APBx according to DT data.
+	  
 source "drivers/clk/qcom/Kconfig"
 
 endmenu
