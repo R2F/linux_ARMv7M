@@ -35,8 +35,7 @@
 			reg = <0x40000000 0x400>;
 			interrupts = <28>;
 			#clock-cells = <1>;
-			clocks = <&clks 1>;
-			/*clock-names = "timerclk";*/
+			clocks = <&clks 4>;
 		};
 		
 		clks: rcc@40023800 {
@@ -44,17 +43,9 @@
 			reg = <0x40023800 0x400>;
 			interrupts = <5>;
 			#clock-cells = <1>;
-			sysclk-frequency = <168000000>;
-			/*
-			ahbclk-frequency = <168000000>;
-			apb1clk-frequency = <42000000>;
-			apb2clk-frequency = <84000000>;
-			*/
-			clock-output-names = "timerclk";
-			
 		};
 		
-		ahb1@40020000 { /* AHB1 bus 180MHz */
+		ahb1@40020000 { /* AHB1 bus 168MHz */
 			compatible = "simple-bus";
 			reg = <0x40020000 0x60000>;
 			#address-cells = <1>;
@@ -65,15 +56,16 @@
 			gpio1: gpio@40020000 {
 				compatible = "stm32,stm32f4-gpio";
 				reg = <0x4002000 0x400>;
-				interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
+			/*	interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
+			*/
 			};
 		};
 		
-		ahb2@50000000 { /* AHB2 bus 180MHz */
+		ahb2@50000000 { /* AHB2 bus 168MHz */
 			compatible = "simple-bus";
 			reg = <0x50000000 0x60c00>;
 			#address-cells = <1>;
@@ -84,7 +76,7 @@
 		
 		};
 		
-		ahb3@60000000 { /* AHB3 bus 180MHz */
+		ahb3@60000000 { /* AHB3 bus 168MHz */
 			compatible = "simple-bus";
 			reg = <0x60000000 0x80000000>;
 			#address-cells = <1>;
@@ -95,7 +87,7 @@
 		
 		};
 
-		apb1@40000000 { /* APB1 bus 45MHz */
+		apb1@40000000 { /* APB1 bus 42MHz */
 			compatible = "simple-bus";
 			reg = <0x40000000 0x8000>;
 			#address-cells = <1>;
@@ -106,7 +98,7 @@
 		
 		};
 		
-		apb2@40010000 { /* APB2 bus 90MHz */
+		apb2@40010000 { /* APB2 bus 84MHz */
 			compatible = "simple-bus";
 			reg = <0x40010000 0x6c00>;
 			#address-cells = <1>;

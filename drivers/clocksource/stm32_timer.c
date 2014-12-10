@@ -14,8 +14,6 @@
 
 static void __iomem *timer_base;
 
-#define TEMPORARY_HZ_VAL	84000000
-
 #define MIN_CCR_DELTA 16
 
 #define TIMx_CR1	0x00
@@ -106,6 +104,8 @@ static struct irqaction stm32_timer_irq = {
 static void __init global_timer_of_register(struct device_node *np)
 {
 	int irq;
+	struct clk * clk;
+	unsigned long clk_rate;
 
 	timer_base = of_iomap(np, 0);
 	if(!timer_base) {
@@ -113,6 +113,18 @@ static void __init global_timer_of_register(struct device_node *np)
 		goto err_iomap;
 	}
 
+	clk = of_clk_get(np, 0);
+	if(!clk){
+		pr_err("failed to get clock for clockevent\n");
+		goto err_get_clk;
+	}
+	clk_prepare_enable(clk);
+	clk_rate = clk_get_rate(clk);
+	if(!clk_rate){
+		pr_err("failed to get clock rate for clockevent\n");
+		clk_disable_unprepare(clk);
+		goto err_get_clk;
+	}
 	irq = irq_of_parse_and_map(np, 0);
 	if(!irq) {
 		pr_err("failed to get irq for clockevent\n");
@@ -133,14 +145,13 @@ static void __init global_timer_of_register(struct device_node *np)
 			timer_base + TIMx_EGR);
 
 	clocksource_mmio_init(timer_base + TIMx_CNT, "stm32 timer",
-				TEMPORARY_HZ_VAL, 200, 32,
-				clocksource_mmio_readl_up);
+				clk_rate, 200, 32, clocksource_mmio_readl_up);
 
-	sched_clock_register(stm32_timer_sched_read, 32, TEMPORARY_HZ_VAL);
+	sched_clock_register(stm32_timer_sched_read, 32, clk_rate);
 
 	clockevents_config_and_register(&stm32_clockevent,
-				TEMPORARY_HZ_VAL, MIN_CCR_DELTA, 0xFFFFFFFF);
-
+				clk_rate, MIN_CCR_DELTA, 0xFFFFFFFF);
+err_get_clk:
 err_get_irq:
 	iounmap(timer_base);
 err_iomap:

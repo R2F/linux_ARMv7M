@@ -32,7 +32,6 @@ static void __iomem * pwr_base_reg;
 #define STM32_PWR_CR_VOS_SCALE_MODE_2	(0x2 << 6)
 #define STM32_PWR_CR_VOS_SCALE_MODE_3	(0x1 << 6)
 
-static void __iomem * flash_base_reg;
 /* RCC registers */
 static void __iomem * rcc_base_reg;
 
@@ -163,50 +162,48 @@ static void __iomem * rcc_base_reg;
 #define STM32_RCC_CFGR_SW_HSE		(0x1)
 #define STM32_RCC_CFGR_SW_PLL		(0x2)
 
-#define STM32_RCC_CIR		(rcc_base_reg + 0x0C)
-#define STM32_RCC_AHB1RSTR	(rcc_base_reg + 0x10)
-#define STM32_RCC_AHB2RSTR	(rcc_base_reg + 0x14)
-#define STM32_RCC_AHB3RSTR	(rcc_base_reg + 0x18)
-#define STM32_RCC_APB1RSTR	(rcc_base_reg + 0x20)
-#define STM32_RCC_APB2RSTR	(rcc_base_reg + 0x24)
-#define STM32_RCC_AHB1ENR	(rcc_base_reg + 0x30)
-#define STM32_RCC_AHB2ENR	(rcc_base_reg + 0x34)
-#define STM32_RCC_AHB3ENR	(rcc_base_reg + 0x38)
+#define STM32_RCC_CIR			(rcc_base_reg + 0x0C)
+#define STM32_RCC_AHB1RSTR		(rcc_base_reg + 0x10)
+#define STM32_RCC_AHB2RSTR		(rcc_base_reg + 0x14)
+#define STM32_RCC_AHB3RSTR		(rcc_base_reg + 0x18)
+#define STM32_RCC_APB1RSTR		(rcc_base_reg + 0x20)
+#define STM32_RCC_APB2RSTR		(rcc_base_reg + 0x24)
+#define STM32_RCC_AHB1ENR		(rcc_base_reg + 0x30)
+#define STM32_RCC_AHB2ENR		(rcc_base_reg + 0x34)
+#define STM32_RCC_AHB3ENR		(rcc_base_reg + 0x38)
 #define STM32_RCC_APB1ENR		(rcc_base_reg + 0x40)
 #define STM32_RCC_APB1ENR_PWREN		(0x1 << 28)
-#define STM32_RCC_APB2ENR	(rcc_base_reg + 0x44)
-#define STM32_RCC_AHB1LPENR	(rcc_base_reg + 0x50)
-#define STM32_RCC_AHB2LPENR	(rcc_base_reg + 0x54)
-#define STM32_RCC_AHB3LPENR	(rcc_base_reg + 0x58)
-#define STM32_RCC_APB1LPENR	(rcc_base_reg + 0x60)
-#define STM32_RCC_APB2LPENR	(rcc_base_reg + 0x64)
-#define STM32_RCC_BDCR		(rcc_base_reg + 0x70)
-#define STM32_RCC_CSR		(rcc_base_reg + 0x74)
-#define STM32_RCC_SSCGR		(rcc_base_reg + 0x80)
-#define STM32_RCC_PLLI2SCFGR	(rcc_base_reg + 0x84)
-#define STM32_RCC_PLLSAICFGR	(rcc_base_reg + 0x88)
-#define STM32_RCC_DCKCFGR	(rcc_base_reg + 0x8C)
+#define STM32_RCC_APB2ENR		(rcc_base_reg + 0x44)
+#define STM32_RCC_AHB1LPENR		(rcc_base_reg + 0x50)
+#define STM32_RCC_AHB2LPENR		(rcc_base_reg + 0x54)
+#define STM32_RCC_AHB3LPENR		(rcc_base_reg + 0x58)
+#define STM32_RCC_APB1LPENR		(rcc_base_reg + 0x60)
+#define STM32_RCC_APB2LPENR		(rcc_base_reg + 0x64)
+#define STM32_RCC_BDCR			(rcc_base_reg + 0x70)
+#define STM32_RCC_CSR			(rcc_base_reg + 0x74)
+#define STM32_RCC_SSCGR			(rcc_base_reg + 0x80)
+#define STM32_RCC_PLLI2SCFGR		(rcc_base_reg + 0x84)
+#define STM32_RCC_PLLSAICFGR		(rcc_base_reg + 0x88)
+#define STM32_RCC_DCKCFGR		(rcc_base_reg + 0x8C)
 
-struct clks_freqs {
-	unsigned int sysclk_freq;
-	unsigned int ahbclk_freq;
-	unsigned int apb1clk_freq;
-	unsigned int apb2clk_freq;
+enum clock {
+	CLOCK_CORE,
+	CLOCK_AHB,
+	CLOCK_APB1,
+	CLOCK_APB2,
+	CLOCK_TIMER2,
+	CLOCK_SYSTICK,
+	CLOCK_MAX
 };
-
-static struct clk * sysclk;
-enum idx {
-	ahbclk_idx,
-	apb1clk_idx,
-	apb2clk_idx,
-	timerclk_idx,
-	max_idx
-}clks_idx;
-static struct clk * clks[max_idx];
+static struct clk * clks[CLOCK_MAX];
+static struct clk_onecell_data clk_data = {
+	.clks = clks,
+	.clk_num = CLOCK_MAX,
+};
 
 DEFINE_SPINLOCK(stm32_rcc_lock);
 
-static int stm32_sysclk_setup(struct clks_freqs freqs)
+static int stm32_sysclk_setup(void)
 {
 	unsigned int v;
 
@@ -221,7 +218,7 @@ static int stm32_sysclk_setup(struct clks_freqs freqs)
 	v = readl(STM32_RCC_CR);
 	v &= ~(STM32_RCC_CR_HSEON | STM32_RCC_CR_CSSON | STM32_RCC_CR_PLLON);
 	writel(v, STM32_RCC_CR);
-	//while(readl(STM32_RCC_CR) & STM32_RCC_CR_PLLRDY);
+
 	/* Reset PLLCFGR, value from RM */
 	writel(0x24003010, STM32_RCC_PLLCFGR);
 	/* disable HSE bypass */
@@ -249,7 +246,6 @@ static int stm32_sysclk_setup(struct clks_freqs freqs)
 
 	/* Count prescalers for the frequencies */
 	/* now assume AHB=168MHz/APB1=42MHz/APB2=84MHz */
-
 	v = readl(STM32_RCC_CFGR);
 	v |= STM32_RCC_CFGR_HPRE_DIVNO;
 	v |= STM32_RCC_CFGR_PPRE1_DIV4;
@@ -257,17 +253,11 @@ static int stm32_sysclk_setup(struct clks_freqs freqs)
 	writel(v, STM32_RCC_CFGR);
 
 	/* setup PLL */
-
 	v = (8 << STM32_RCC_PLLCFGR_PLLM_BIT)
 		| (336 << STM32_RCC_PLLCFGR_PLLN_BIT)
 		| STM32_RCC_PLLCFGR_PLLP_DIV2
 		| (7 << STM32_RCC_PLLCFGR_PLLQ_BIT);
-/*
-	v = (4 << STM32_RCC_PLLCFGR_PLLM_BIT)
-		| (360 << STM32_RCC_PLLCFGR_PLLN_BIT)
-		| STM32_RCC_PLLCFGR_PLLP_DIV4
-		| (15 << STM32_RCC_PLLCFGR_PLLQ_BIT);
-*/
+
 	v |= STM32_RCC_PLLCFGR_PLLSRC_HSE;
 	writel(v, STM32_RCC_PLLCFGR);
 
@@ -276,12 +266,6 @@ static int stm32_sysclk_setup(struct clks_freqs freqs)
 	v |= STM32_RCC_CR_PLLON;
 	writel(v, STM32_RCC_CR);
 	while(!((readl(STM32_RCC_CR)) & STM32_RCC_CR_PLLRDY));
-
-	/* 5 wait states, D-Cache enabled, I-Cache enabled */
-	{
-		flash_base_reg = ioremap(0x40023c00, 0x400);
-		writel(0x00000605, flash_base_reg);
-	}
 
 	/* switch to PLL */
 	v = readl(STM32_RCC_CFGR);
@@ -293,22 +277,16 @@ static int stm32_sysclk_setup(struct clks_freqs freqs)
 
 	return 0;
 }
-enum clock {
-	CLOCK_CORE,
-	CLOCK_AHB,
-	CLOCK_APB1,
-	CLOCK_APB2,
-	CLOCK_SYSTICK
-};
-static unsigned long clock_get(enum clock clck)
+
+static unsigned long stm32_get_clock(enum clock clck)
 {
-	u32 sysclk = 0;
-	u32 shift = 0;
-	u32 v;
+	unsigned int sysclk = 0;
+	unsigned int shift = 0;
+	unsigned int v = 0;
 	/* Prescaler table lookups for clock computation */
-	u8 ahb_psc_table[16] =
+	unsigned char ahb_psc_table[16] =
 	{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
-	u8 apb_psc_table[8] =
+	unsigned char apb_psc_table[8] =
 	{0, 0, 0, 0, 1, 2, 3, 4};
 
 	v = readl(STM32_RCC_CFGR);
@@ -320,129 +298,61 @@ static unsigned long clock_get(enum clock clck)
 		sysclk = ((CONFIG_STM32_HSE_HZ / pllm) * plln) / pllp;
 	}
 	else{
-		printk("%s: 0x%x != STM32_RCC_CFGR_SWS_PLL\n",__func__,v);
-		return (unsigned long)v;
+		return 0;
 	}
 	switch(clck) {
-	case CLOCK_CORE:
-		return sysclk;
-		break;
-	case CLOCK_AHB:
-		shift = ahb_psc_table[((readl(STM32_RCC_CFGR)  & STM32_RCC_CFGR_HPRE_MASK) >> 4)];
-		return sysclk >>= shift;
-		break;
-	case CLOCK_APB1:
-		shift = apb_psc_table[((readl(STM32_RCC_CFGR)  & STM32_RCC_CFGR_PPRE1_MASK) >> 10)];
-		return sysclk >>= shift;
-		break;
-	case CLOCK_APB2:
-		shift = apb_psc_table[((readl(STM32_RCC_CFGR)  & STM32_RCC_CFGR_PPRE2_MASK) >> 13)];
-		return sysclk >>= shift ;
-		break;
-	case CLOCK_SYSTICK:
-		return sysclk / 8;
-		break;
-	default:
-		return 0;
-		break;
+		case CLOCK_CORE:
+			return sysclk;
+			break;
+		case CLOCK_AHB:
+			shift = ahb_psc_table[((readl(STM32_RCC_CFGR)  & STM32_RCC_CFGR_HPRE_MASK) >> 4)];
+			return sysclk >>= shift;
+			break;
+		case CLOCK_APB1:
+			shift = apb_psc_table[((readl(STM32_RCC_CFGR)  & STM32_RCC_CFGR_PPRE1_MASK) >> 10)];
+			return sysclk >>= shift;
+			break;
+		case CLOCK_APB2:
+			shift = apb_psc_table[((readl(STM32_RCC_CFGR)  & STM32_RCC_CFGR_PPRE2_MASK) >> 13)];
+			return sysclk >>= shift ;
+			break;
+		case CLOCK_SYSTICK:
+			return sysclk / 8;
+			break;
+		default:
+			return 0;
+			break;
 	}
 }
-
-/*
-static __init struct clk *hb_clk_init(struct device_node *node, const struct clk_ops *ops)
-{
-	u32 reg;
-	struct clk *clk;
-	struct hb_clk *hb_clk;
-	const char *clk_name = node->name;
-	const char *parent_name;
-	struct clk_init_data init;
-	struct device_node *srnp;
-	int rc;
-
-	rc = of_property_read_u32(node, "reg", &reg);
-	if (WARN_ON(rc))
-		return NULL;
-
-	hb_clk = kzalloc(sizeof(*hb_clk), GFP_KERNEL);
-	if (WARN_ON(!hb_clk))
-		return NULL;
-
-	srnp = of_find_compatible_node(NULL, NULL, "stm32,name");
-	hb_clk->reg = of_iomap(srnp, 0);
-	BUG_ON(!hb_clk->reg);
-	hb_clk->reg += reg;
-
-	of_property_read_string(node, "clock-output-names", &clk_name);
-
-	init.name = clk_name;
-	init.ops = ops;
-	init.flags = 0;
-	parent_name = of_clk_get_parent_name(node, 0);
-	init.parent_names = &parent_name;
-	init.num_parents = 1;
-
-	hb_clk->hw.init = &init;
-
-	clk = clk_register(NULL, &hb_clk->hw);
-	if (WARN_ON(IS_ERR(clk))) {
-		kfree(hb_clk);
-		return NULL;
-	}
-	rc = of_clk_add_provider(node, of_clk_src_simple_get, clk);
-	return clk;
-}
-*/
-/* setups */
 
 static void __init stm32_rcc_init(struct device_node *sysclk_node)
 {
-	unsigned int ret;
 	struct device_node *np;
-	unsigned int i;
-	struct clks_freqs clk_frqs;
 
 	np = sysclk_node;
 	rcc_base_reg = of_iomap(np, 0);
 	WARN_ON(!rcc_base_reg);
 
-	ret = of_property_read_u32(np, "sysclk-frequency", &clk_frqs.sysclk_freq);
-//	ret = of_property_read_u32(np, "ahbclk-frequency", &clk_frqs.ahbclk_freq);
-//	ret = of_property_read_u32(np, "apb1clk-frequency", &clk_frqs.apb1clk_freq);
-//	ret = of_property_read_u32(np, "apb2clk-frequency", &clk_frqs.apb2clk_freq);
-/*
-printk("%s: sys clk = (%dHz)\n",__func__, clk_frqs.sysclk_freq);
-printk("%s: clocks before change\n",__func__);
-printk("%s: core = %ldHz\n ",__func__,clock_get(CLOCK_CORE));
-printk("%s: ahb = %ldHz\n ",__func__,clock_get(CLOCK_AHB));
-printk("%s: apb1 = %ldHz\n ",__func__,clock_get(CLOCK_APB1));
-printk("%s: apb2 = %ldHz\n ",__func__,clock_get(CLOCK_APB2));
-printk("%s: systick = %ldHz\n ",__func__,clock_get(CLOCK_SYSTICK));
-*/
-	stm32_sysclk_setup(clk_frqs);
-	sysclk = clk_register_fixed_rate(NULL, "sysclk", NULL, CLK_IS_ROOT,clk_frqs.sysclk_freq);
-	clk_prepare_enable(sysclk);
-printk("%s:sysclk registered (%ldHz)\n",__func__, clock_get(CLOCK_CORE));
+	stm32_sysclk_setup();
 
-	//clks[ahbclk_idx] = clk_register_fixed_rate(NULL, "ahbclk", NULL, CLK_IS_ROOT,clk_frqs.ahbclk_freq);
-	clks[ahbclk_idx] = clk_register_fixed_factor(NULL, "ahbclk", "sysclk", CLK_SET_RATE_PARENT, 1, 1);
-	clk_prepare_enable(clks[ahbclk_idx]);
-printk("%s:ahbclk registered (%ldHz)\n",__func__, clock_get(CLOCK_AHB));
+	clks[CLOCK_CORE] = clk_register_fixed_rate(NULL, "sysclk", NULL, CLK_IS_ROOT, stm32_get_clock(CLOCK_CORE));
+	clk_prepare_enable(clks[CLOCK_CORE]);
+	printk("%s: sysclk registered (%ldHz)\n",__func__, stm32_get_clock(CLOCK_CORE));
 
-	//clks[apb1clk_idx] = clk_register_fixed_rate(NULL, "apb1clk", NULL, CLK_IS_ROOT,clk_frqs.apb1clk_freq);
-	clks[apb1clk_idx] = clk_register_fixed_factor(NULL, "apb1clk", "ahbclk", CLK_SET_RATE_PARENT, 1, 4);
-	clk_prepare_enable(clks[apb1clk_idx]);
-printk("%s:apb1clk registered (%ldHz)\n",__func__, clock_get(CLOCK_APB1));
+	clks[CLOCK_AHB] = clk_register_fixed_factor(NULL, "ahbclk", "sysclk", CLK_SET_RATE_PARENT, 1, 1);
+	clk_prepare_enable(clks[CLOCK_AHB]);
+	printk("%s: ahbclk registered (%ldHz)\n",__func__, stm32_get_clock(CLOCK_AHB));
 
-	//clks[apb2clk_idx] = clk_register_fixed_rate(NULL, "apb2clk", NULL, CLK_IS_ROOT,clk_frqs.apb2clk_freq);
-	clks[apb2clk_idx] = clk_register_fixed_factor(NULL, "apb2clk", "apb1clk", CLK_SET_RATE_PARENT, 2, 1);
-	clk_prepare_enable(clks[apb2clk_idx]);
-printk("%s:apb2clk registered (%ldHz)\n",__func__, clock_get(CLOCK_APB2));
+	clks[CLOCK_APB1] = clk_register_fixed_factor(NULL, "apb1clk", "ahbclk", CLK_SET_RATE_PARENT, 1, 4);
+	clk_prepare_enable(clks[CLOCK_APB1]);
+	printk("%s: apb1clk registered (%ldHz)\n",__func__, stm32_get_clock(CLOCK_APB1));
 
-	//clks[timerclk_idx] = clk_register_fixed_rate(NULL, "timerclk", NULL, CLK_IS_ROOT,clk_frqs.apb2clk_freq);
-	//clk_prepare_enable(clks[timerclk_idx]);
-	clks[timerclk_idx] = clk_register_fixed_factor(NULL, "timerclk", "apb2clk", CLK_SET_RATE_PARENT, 1, 1);
-	clk_prepare_enable(clks[timerclk_idx]);
+	clks[CLOCK_APB2] = clk_register_fixed_factor(NULL, "apb2clk", "apb1clk", CLK_SET_RATE_PARENT, 2, 1);
+	clk_prepare_enable(clks[CLOCK_APB2]);
+	printk("%s: apb2clk registered (%ldHz)\n",__func__, stm32_get_clock(CLOCK_APB2));
+
+	clks[CLOCK_TIMER2] = clk_register_gate(NULL, "timer2clk", "apb2clk", 0, rcc_base_reg + 0x40, 0, 0, &stm32_rcc_lock);
+	of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data);
 }
 CLK_OF_DECLARE(stm32_rcc, "stm32,rcc", stm32_rcc_init);
 
