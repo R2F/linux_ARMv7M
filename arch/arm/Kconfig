@@ -331,6 +331,7 @@ menuconfig ARCH_STM32
 	select NO_IOPORT_MAP
 	select SPARSE_IRQ
 	select USE_OF
+	select COMMON_CLK_STM32
 
 config ARCH_INTEGRATOR
 	bool "ARM Ltd. Integrator family"
