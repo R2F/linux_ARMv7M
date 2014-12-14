@@ -17,9 +17,9 @@
 
 #define DRIVER_NAME "clk-stm32f429"
 
-#if !defined(CONFIG_STM32_HSE_HZ)
-#error "CONFIG_STM32_HSE_HZ not defined!"
-#endif
+#define HSI_HZ	16000000
+#define HSE_HZ	8000000
+static unsigned int clock_src_HZ;
 
 /* PWR registers */
 static void __iomem * pwr_base_reg;
@@ -192,8 +192,8 @@ enum clock {
 	CLOCK_APB1,
 	CLOCK_APB2,
 	CLOCK_TIMER2,
-	CLOCK_SYSTICK,
-	CLOCK_MAX
+	CLOCK_SYSTICK, /* keep this one last */
+	CLOCK_MAX /* number of supported clocks */
 };
 static struct clk * clks[CLOCK_MAX];
 static struct clk_onecell_data clk_data = {
@@ -203,9 +203,25 @@ static struct clk_onecell_data clk_data = {
 
 DEFINE_SPINLOCK(stm32_rcc_lock);
 
-static int stm32_sysclk_setup(void)
+static int stm32_sysclk_setup(unsigned int hse_freq)
 {
 	unsigned int v;
+
+/* If PLL is set as sysclk source, it cannot be disabled and reconfigured once
+ * it is enabled.
+ * I do not know yet any other way to reconfigure PLL settings without entering
+ * STOP mode. To enter the STOP mode safely, we need to be able to wake up
+ * automatically. In order to get this working we need to provide support for
+ * RTC in STOP mode and an ISR. Then we have to come back here to proceed with
+ * PLL reconfiguration. Another option is to use HSI/HSE as sysclk source in
+ * U-boot, but that will probably make the bootloader much slower.
+ * If we do not reconfigure the PLL and use HSI as provider, then all clocks
+ * will be incorrect and shown as 2x higher than in case of HSE.
+ * Therefore temporarily, the clock_src_HZ is set to HSE_HZ instead of HSI_HZ:
+ *
+ *      clock_src_HZ = hse_freq?hse_freq:HSI_HZ;
+ */
+	clock_src_HZ = hse_freq?hse_freq:HSE_HZ;
 
 	pwr_base_reg = ioremap(0x40007000, 0x400);
 	WARN_ON(!pwr_base_reg);
@@ -214,6 +230,7 @@ static int stm32_sysclk_setup(void)
 	v = readl(STM32_RCC_CR);
 	v |= STM32_RCC_CR_HSION;
 	writel(v, STM32_RCC_CR);
+
 	/* turn off HSE, CSS, PLL */
 	v = readl(STM32_RCC_CR);
 	v &= ~(STM32_RCC_CR_HSEON | STM32_RCC_CR_CSSON | STM32_RCC_CR_PLLON);
@@ -230,12 +247,19 @@ static int stm32_sysclk_setup(void)
 	/* Reset CFGR */
 	writel(0, STM32_RCC_CFGR);
 
-	/* Configure for HSE+PLL operation */
+	/* Configure for HSE/HSI + PLL operation */
 	v = readl(STM32_RCC_CR);
 	v &= ~(STM32_RCC_CR_HSION);
-	v |= (STM32_RCC_CR_HSEON | STM32_RCC_CR_CSSON );
-	writel(v, STM32_RCC_CR);
-	while(!(readl(STM32_RCC_CR) & STM32_RCC_CR_HSERDY));
+	if(clock_src_HZ == HSI_HZ){
+		v |= (STM32_RCC_CR_HSION | STM32_RCC_CR_CSSON );
+		writel(v, STM32_RCC_CR);
+		while(!(readl(STM32_RCC_CR) & STM32_RCC_CR_HSIRDY));
+	}
+	else{
+		v |= (STM32_RCC_CR_HSEON | STM32_RCC_CR_CSSON );
+		writel(v, STM32_RCC_CR);
+		while(!(readl(STM32_RCC_CR) & STM32_RCC_CR_HSERDY));
+	}
 
 	/* Enable high performance mode, System frequency up to 168 MHz */
 	v = readl(STM32_RCC_APB1ENR);
@@ -253,12 +277,20 @@ static int stm32_sysclk_setup(void)
 	writel(v, STM32_RCC_CFGR);
 
 	/* setup PLL */
-	v = (8 << STM32_RCC_PLLCFGR_PLLM_BIT)
-		| (336 << STM32_RCC_PLLCFGR_PLLN_BIT)
-		| STM32_RCC_PLLCFGR_PLLP_DIV2
-		| (7 << STM32_RCC_PLLCFGR_PLLQ_BIT);
-
-	v |= STM32_RCC_PLLCFGR_PLLSRC_HSE;
+	if(clock_src_HZ == HSI_HZ){
+		v = (16 << STM32_RCC_PLLCFGR_PLLM_BIT)
+			| (336 << STM32_RCC_PLLCFGR_PLLN_BIT)
+			| STM32_RCC_PLLCFGR_PLLP_DIV2
+			| (7 << STM32_RCC_PLLCFGR_PLLQ_BIT);
+		v |= STM32_RCC_PLLCFGR_PLLSRC_HSI;
+	}
+	else{
+		v = (8 << STM32_RCC_PLLCFGR_PLLM_BIT)
+			| (336 << STM32_RCC_PLLCFGR_PLLN_BIT)
+			| STM32_RCC_PLLCFGR_PLLP_DIV2
+			| (7 << STM32_RCC_PLLCFGR_PLLQ_BIT);
+		v |= STM32_RCC_PLLCFGR_PLLSRC_HSE;
+	}
 	writel(v, STM32_RCC_PLLCFGR);
 
 	/* enable PLL */
@@ -291,15 +323,16 @@ static unsigned long stm32_get_clock(enum clock clck)
 
 	v = readl(STM32_RCC_CFGR);
 	if((v & STM32_RCC_CFGR_SWS_MASK) == STM32_RCC_CFGR_SWS_PLL) {
-		u16 pllm, plln, pllp;
+		unsigned int pllm, plln, pllp;
 		pllm = (readl(STM32_RCC_PLLCFGR) & STM32_RCC_PLLCFGR_PLLM_MASK);
-		plln = ((readl(STM32_RCC_PLLCFGR) & STM32_RCC_PLLCFGR_PLLN_MASK) >> 6);
-		pllp = ((((readl(STM32_RCC_PLLCFGR) & STM32_RCC_PLLCFGR_PLLP_MASK) >> 16) + 1) << 1);
-		sysclk = ((CONFIG_STM32_HSE_HZ / pllm) * plln) / pllp;
+		plln = ((readl(STM32_RCC_PLLCFGR) & STM32_RCC_PLLCFGR_PLLN_MASK) >> STM32_RCC_PLLCFGR_PLLN_BIT);
+		pllp = ((((readl(STM32_RCC_PLLCFGR) & STM32_RCC_PLLCFGR_PLLP_MASK) >> STM32_RCC_PLLCFGR_PLLN_BIT) + 1) << 1);
+		sysclk = (((clock_src_HZ) / pllm) * plln) / pllp;
 	}
 	else{
-		return 0;
+		sysclk = clock_src_HZ;
 	}
+
 	switch(clck) {
 		case CLOCK_CORE:
 			return sysclk;
@@ -317,7 +350,7 @@ static unsigned long stm32_get_clock(enum clock clck)
 			return sysclk >>= shift ;
 			break;
 		case CLOCK_SYSTICK:
-			return sysclk / 8;
+			return (sysclk==clock_src_HZ)?sysclk:(sysclk / 8);
 			break;
 		default:
 			return 0;
@@ -327,13 +360,24 @@ static unsigned long stm32_get_clock(enum clock clck)
 
 static void __init stm32_rcc_init(struct device_node *sysclk_node)
 {
-	struct device_node *np;
+	struct device_node *np, *cpu_node;
+	unsigned int hse_freq = 0;
+
+	cpu_node = of_get_cpu_node(0, NULL);
+	if(!cpu_node){
+		printk("%s: CPU node not found\n",__func__);
+		BUG();
+	}
+	if(0 != of_property_read_u32_index(cpu_node, "hse-frequency", 0, &hse_freq)){
+		printk("%s: HSE frequency not found, using HSI\n",__func__);
+	}
+	of_node_put(cpu_node);
 
 	np = sysclk_node;
 	rcc_base_reg = of_iomap(np, 0);
 	WARN_ON(!rcc_base_reg);
 
-	stm32_sysclk_setup();
+	stm32_sysclk_setup(hse_freq);
 
 	clks[CLOCK_CORE] = clk_register_fixed_rate(NULL, "sysclk", NULL, CLK_IS_ROOT, stm32_get_clock(CLOCK_CORE));
 	clk_prepare_enable(clks[CLOCK_CORE]);

@@ -13,6 +13,12 @@
 		reg = <0xD0000000 0x00800000>;
 	};
 	
+	cpus {
+		cpu0: cpu@0{
+			hse-frequency = <8000000>;
+		};
+	};
+	
 	soc {
 		uart0: uart@4000c000 {
 			location = <2>;
