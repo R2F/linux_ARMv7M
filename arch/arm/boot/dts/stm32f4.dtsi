@@ -1,13 +1,8 @@
-#include <dt-bindings/interrupt-controller/arm-gic.h>
 #include "armv7-m.dtsi"
-
-#define apb2clk_idx 2
-#define timerclk_idx 3
 
 / {
 	aliases {
 		serial0 = &uart0;
-		
 		gpioa = &gpio1;
 	};
 
@@ -15,7 +10,7 @@
 		#size-cells = <0>;
 		#address-cells = <1>;
 
-		cpu@0 {
+		cpu0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-m4";
 			reg = <0x0>;
@@ -54,12 +49,11 @@
 			
 			/* peryferia */
 			gpio1: gpio@40020000 {
-				compatible = "stm32,stm32f4-gpio";
-				reg = <0x4002000 0x400>;
+				compatible = "stm32,gpio";
+				reg = <0x40020000 0x400>;
 			/*	interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
 				gpio-controller;
 				#gpio-cells = <2>;
-				interrupt-controller;
 				#interrupt-cells = <2>;
 			*/
 			};
