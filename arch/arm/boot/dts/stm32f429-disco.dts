@@ -20,8 +20,7 @@
 	};
 	
 	soc {
-		uart0: uart@4000c000 {
-			location = <2>;
+		uart0: uart@40011000 {
 			status = "ok";
 		};
 	};
