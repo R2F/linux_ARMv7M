@@ -82,8 +82,24 @@ kallsyms()
 		kallsymopt="${kallsymopt} --all-symbols"
 	fi
 
-	if [ -n "${CONFIG_ARM}" ] && [ -n "${CONFIG_PAGE_OFFSET}" ]; then
-		kallsymopt="${kallsymopt} --page-offset=$CONFIG_PAGE_OFFSET"
+	if [ -n "${CONFIG_ARM}" ]; then
+		# There are some ARM toolchains that generate some internal
+		# symbols that then appear in /proc/kallsyms and these disturbe
+		# perf. So filter out all symbols below PAGE_OFFSET.
+		# ARM is a bit complicated here. The page-offset isn't
+		# completely determined in Kconfig as of 3.14-rc. Without MMU
+		# it's not CONFIG_PAGE_OFFSET that is used but (indirectly)
+		# CONFIG_DRAM_BASE. But for XIP we want the XIP PHYS_ADDR
+		# though.
+		if [ -n "${CONFIG_XIP_PHYS_ADDR}" ]; then
+			page_offset="${CONFIG_XIP_PHYS_ADDR}"
+		elif [ -z "${CONFIG_MMU}" ]; then
+			page_offset="${CONFIG_DRAM_BASE}"
+		else
+			page_offset="$CONFIG_PAGE_OFFSET"
+		fi
+
+		kallsymopt="${kallsymopt} --page-offset=$page_offset"
 	fi
 
 	if [ -n "${CONFIG_X86_64}" ]; then
