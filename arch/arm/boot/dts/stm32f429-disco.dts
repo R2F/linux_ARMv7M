@@ -23,5 +23,14 @@
 		uart0: uart@40011000 {
 			status = "ok";
 		};
+
+		fb0: fb@20000000  {
+			reg = <0x20000000 0x30000>;
+			compatible = "simple-framebuffer";
+			width = <240>;
+			height = <320>;
+			stride = <480>;
+			format = "r5g6b5";
+		};
 	};
 };
