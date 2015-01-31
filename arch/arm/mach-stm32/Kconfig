@@ -4,4 +4,8 @@ config MACH_STM32F4
 	bool "STM32F4 SoCs support"
 	default ARCH_STM32
 
+config SOC_STM32F429
+	bool "STM32F429 SOC support"
+	default y
+	select PINCTRL_STM32F429
 endif

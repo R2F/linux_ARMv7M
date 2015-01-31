@@ -1,4 +1,5 @@
 #include "armv7-m.dtsi"
+#include "stm32-pinfunc.h"
 
 / {
 	aliases {
@@ -18,8 +19,15 @@
 	};
 
 	soc {
+		pinctrl: pinctrl@40020000 { /* GPIOA-K */
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "stm32,stm32-pinctrl";
+			ranges = <0x40020000 0x40020000 0x2C00>; /* 0x400*0xB */
+		};
+		
 		uart0: uart@40011000 { /* USART0 */
-			compatible = "st,stm32-usart";
+			compatible = "stm32,stm32-usart";
 			reg = <0x40011000 0x400>;
 			interrupts = <37>;
 			status = "disabled";

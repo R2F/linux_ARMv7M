@@ -239,6 +239,12 @@ config PINCTRL_ST
 	select PINCONF
 	select GPIOLIB_IRQCHIP
 
+config PINCTRL_STM32F429
+	bool
+	depends on SOC_STM32F429
+	select PINMUX
+	select PINCONF
+
 config PINCTRL_TEGRA
 	bool
 	select PINMUX

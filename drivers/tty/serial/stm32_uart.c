@@ -347,7 +347,7 @@ static struct console stm32_console = {
 
 #if defined(CONFIG_OF)
 static const struct of_device_id stm32_serial_dt_ids[] = {
-	{ .compatible = "st,stm32-usart" },
+	{ .compatible = "stm32,stm32-usart" },
 	{ /* sentinel */ }
 };
 
