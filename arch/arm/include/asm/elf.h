@@ -29,6 +29,7 @@ typedef struct user_fp elf_fpregset_t;
 
 #define EF_ARM_BE8		0x00800000	/* ABI 4,5 */
 #define EF_ARM_LE8		0x00400000	/* ABI 4,5 */
+#define EF_ARM_FDPIC            0x00200000	/* -mfdpic */
 #define EF_ARM_MAVERICK_FLOAT	0x00000800	/* ABI 0 */
 #define EF_ARM_VFP_FLOAT	0x00000400	/* ABI 0 */
 #define EF_ARM_SOFT_FLOAT	0x00000200	/* ABI 0 */
@@ -97,6 +98,9 @@ struct elf32_hdr;
  */
 extern int elf_check_arch(const struct elf32_hdr *);
 #define elf_check_arch elf_check_arch
+
+#define elf_check_fdpic(x) ((x)->e_flags & EF_ARM_FDPIC)
+#define elf_check_const_displacement(x) ((x)->e_flags & EF_ARM_PIC)
 
 #define vmcore_elf64_check_arch(x) (0)
 
