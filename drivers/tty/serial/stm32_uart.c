@@ -115,28 +115,23 @@ static void stm32_uart_tx_chars(struct stm32_uart_port *stm_port)
 {
 	struct uart_port *port = &stm_port->port;
 	struct circ_buf *xmit = &port->state->xmit;
+	unsigned int pending, tx;
 
-	while(!uart_circ_empty(xmit)) {
+	pending = uart_circ_chars_pending(xmit);
+
+	for(tx = 0; tx < pending; tx++) {
 		while(!(stm32_uart_read32(stm_port, USART_SR) & USART_SR_TXE));
-
-		if (port->x_char) {
-			port->icount.tx++;
-			stm32_uart_write32(stm_port, port->x_char, USART_DR);
-			port->x_char = 0;
-			continue;
-		}
-		if (!uart_circ_empty(xmit) && !uart_tx_stopped(port)) {
-			port->icount.tx++;
-			stm32_uart_write32(stm_port, xmit->buf[xmit->tail], USART_DR);
-			xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
-		} else
-			break;
-
-		if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-			uart_write_wakeup(port);
+		stm32_uart_write32(stm_port, xmit->buf[xmit->tail], USART_DR);
+		port->icount.tx++;
+		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 	}
 
-	stm32_uart_stop_tx(port);
+	/* disable tx interrupts if nothing more to send */
+	if (uart_circ_empty(xmit))
+		stm32_uart_stop_tx(port);
+
+	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(port);
 }
 
 static irqreturn_t stm32_uart_interrupt(int irq, void *data)
@@ -150,21 +145,22 @@ static irqreturn_t stm32_uart_interrupt(int irq, void *data)
 
 	status = stm32_uart_read32(port, USART_SR);
 
-	if ((status & USART_SR_TXE)) {
-		stm32_uart_tx_chars(port);
-		stm32_uart_write32(port, status & (~(USART_SR_TXE)), USART_SR);
-		handled = IRQ_HANDLED;
-	}
-
 	if ((status & USART_SR_RXNE)) {
 		stm32_uart_rx_chars(port);
-		stm32_uart_write32(port, status & (~(USART_SR_RXNE)), USART_SR);
+		spin_unlock(&port->port.lock);
 		tty_flip_buffer_push(tport);
+		handled = IRQ_HANDLED;
+		goto handled;
+	}
+
+	if ((status & USART_SR_TXE)) {
+		stm32_uart_tx_chars(port);
 		handled = IRQ_HANDLED;
 	}
 
 	spin_unlock(&port->port.lock);
 
+handled:
 	return handled;
 }
 
