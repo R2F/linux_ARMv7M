@@ -4,7 +4,7 @@
 / {
 	aliases {
 		serial0 = &uart0;
-		gpioa = &gpio1;
+		gpioa = &gpio0;
 	};
 
 	cpus {
@@ -24,6 +24,14 @@
 			#size-cells = <1>;
 			compatible = "stm32,stm32-pinctrl";
 			ranges = <0x40020000 0x40020000 0x2C00>; /* 0x400*0xB */
+			
+			gpio0 {
+				pinctrl_gpio0: gpio-0 {
+					stm32,pins =
+						<GPIO_PORT_A GPIO_PIN_14 GPIO_ALT_SYSTEM PIO_PULL_UP
+						 GPIO_PORT_A GPIO_PIN_15 GPIO_ALT_SYSTEM PIO_PULL_UP>;
+				};
+			};
 		};
 		
 		uart0: uart@40011000 { /* USART0 */
@@ -56,7 +64,7 @@
 			ranges;
 			
 			/* peryferia */
-			gpio1: gpio@40020000 {
+			gpio0: gpio@40020000 {
 				compatible = "stm32,gpio";
 				reg = <0x40020000 0x400>;
 			/*	interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
@@ -64,6 +72,9 @@
 				#gpio-cells = <2>;
 				#interrupt-cells = <2>;
 			*/
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_gpio0>;
+			
 			};
 		};
 		

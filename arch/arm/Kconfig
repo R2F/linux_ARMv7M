@@ -333,6 +333,8 @@ menuconfig ARCH_STM32
 	select USE_OF
 	select PINCTRL
 	select COMMON_CLK_STM32
+	select GPIOLIB
+	select GPIOLIB_IRQCHIP
 
 config ARCH_INTEGRATOR
 	bool "ARM Ltd. Integrator family"

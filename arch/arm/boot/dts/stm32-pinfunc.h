@@ -5,8 +5,52 @@
  *      Author: rafalf
  */
 
-#ifndef STM32_PINFUNC_H_
-#define STM32_PINFUNC_H_
+#define GPIO_PORT_A	0
+#define GPIO_PORT_B	1
+#define GPIO_PORT_C	2
+#define GPIO_PORT_D	3
+#define GPIO_PORT_E	4
+#define GPIO_PORT_F	5
+#define GPIO_PORT_G	6
+#define GPIO_PORT_H	7
+#define GPIO_PORT_I	8
+#define GPIO_PORT_J	9
+#define GPIO_PORT_K	10
+
+#define GPIO_PIN_0	0
+#define GPIO_PIN_1	1
+#define GPIO_PIN_2	2
+#define GPIO_PIN_3	3
+#define GPIO_PIN_4	4
+#define GPIO_PIN_5	5
+#define GPIO_PIN_6	6
+#define GPIO_PIN_7	7
+#define GPIO_PIN_8	8
+#define GPIO_PIN_9	9
+#define GPIO_PIN_10	10
+#define GPIO_PIN_11	11
+#define GPIO_PIN_12	12
+#define GPIO_PIN_13	13
+#define GPIO_PIN_14	14
+#define GPIO_PIN_15	15
+
+
+#define GPIO_ALT_SYSTEM		0
+#define GPIO_ALT_TIM_1_2	1
+#define GPIO_ALT_TIM_3_5	2
+#define GPIO_ALT_TIM_8_11	3
+#define GPIO_ALT_I2C_1_3	4
+#define GPIO_ALT_SPI_1_6	5
+#define GPIO_ALT_SPI_2_3_SAI_1	6
+#define GPIO_ALT_USART_1_3	7
+#define GPIO_ALT_USART_4_8	8
+#define GPIO_ALT_CAN_TIM_12_14	9
+#define GPIO_ALT_OTG_FS_HS	10
+#define GPIO_ALT_ETM		11
+#define GPIO_ALT_SDIO_OTG_HS	12
+#define GPIO_ALT_DCMI		13
+#define GPIO_ALT_LTDC		14
+#define GPIO_ALT_EVENTOUT	15
 
 #define STM32_GPIO_MODER_IN	0
 #define STM32_GPIO_MODER_OUT	1
@@ -29,8 +73,14 @@
 #define	STM32_GPIO_PUPDR_PDOWN	2
 #define	STM32_GPIO_PUPDR_MASK	3
 
-#define STM32_GPIO_PIN_CONFIG(m,t,sp,pu) ((m<<5)|(t<<4)|(sp<<2)|(pu))
-
+//#define STM32_GPIO_PIN_CONFIG(m,t,sp,pu) ((m<<5)|(t<<4)|(sp<<2)|(pu))
+#define PIO_PULL_NONE	0
+#define PIO_PULL_UP	1
+#define PIO_PULL_DOWN	2
+#define PIO_PUSHPULL	0
+#define PIO_OPENDRAIN	1
+/* PIO config set: <PORT PIN MODE TYPE SPEED PULLUP>
+*/
 #define STM32_GPIO_IDR	0
 #define STM32_GPIO_ODR	0
 #define STM32_GPIO_BSSR_PIN_RESET(n)	((0x1<<(n))<<16)
@@ -38,5 +88,3 @@
 #define STM32_GPIO_LCKR_LCKK	(0x1<<15)
 #define	STM32_GPIO_LCKR_PIN_LOCK(n) (0x1<<(n))
 
-
-#endif /* STM32_PINFUNC_H_ */
