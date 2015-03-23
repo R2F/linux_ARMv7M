@@ -32,5 +32,33 @@
 			stride = <480>;
 			format = "r5g6b5";
 		};
+		
+		ahb1: ahb1@40020000 {
+			pinctrl: pinctrl@40020000 {
+				gpio0: gpio@40020000{
+					status = "ok";
+				};
+				
+				gpio1: gpio@40020400{
+					status = "ok";
+				};
+				gpio2: gpio@40020800{
+					status = "ok";
+				};
+				gpio3: gpio@40020c00{
+					status = "ok";
+				};
+				gpio4: gpio@40021000{
+					status = "ok";
+				};
+				gpio5: gpio@40021400{
+					status = "ok";
+				};
+				gpio6: gpio@40021800{
+					status = "ok";
+				};
+				
+			};
+		};
 	};
 };

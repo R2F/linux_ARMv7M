@@ -11,6 +11,9 @@
  * (at your option) any later version.
  */
 
+//#define DEBUG
+#include <linux/device.h>
+
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/init.h>
@@ -39,6 +42,9 @@
 #define MAX_GPIO_BANKS		11
 #define MAX_NB_GPIO_PER_BANK	16
 
+static void __iomem * g_exti_reg = NULL;
+static void __iomem * g_syscfg_reg = NULL;
+
 static int gpio_banks;
 struct stm32_pinctrl_mux_ops;
 
@@ -50,6 +56,8 @@ struct stm32_gpio_chip {
 	int			pioc_virq;	/* PIO bank Linux virtual interrupt */
 	int			pioc_idx;	/* PIO bank index */
 	void __iomem		*regbase;	/* PIO bank virtual address */
+//	void __iomem		*syscfg;	/* EXTI controller address */
+//	void __iomem		*exti;	/* EXTI controller address */
 	struct clk		*clock;		/* associated clock */
 	struct stm32_pinctrl_mux_ops *ops;	/* ops */
 };
@@ -70,6 +78,7 @@ struct stm32_pmx_pin {
 	uint32_t	pin;
 	enum stm32_pin_func	mux;
 	unsigned long	conf;
+	unsigned int use_exti_line;
 };
 
 struct stm32_pin_group {
@@ -112,100 +121,191 @@ struct stm32_pinctrl {
 static void __iomem *pin_to_controller(struct stm32_pinctrl *info,
 				 unsigned int bank)
 {
+	printk("%s: \n",__func__);
 	return gpio_chips[bank]->regbase;
 }
 
 static inline int pin_to_bank(unsigned pin)
 {
+	printk("%s: \n",__func__);
 	return pin /= MAX_NB_GPIO_PER_BANK;
 }
 
 static unsigned pin_to_mask(unsigned int pin)
 {
+	printk("%s: \n",__func__);
 	return 1 << pin;
 }
 
-
+/* pin configuration ops */
 enum stm32_pin_func stm32_get_periph(void __iomem *pio, unsigned int pin)
 {
-	return (enum stm32_pin_func)0;
+	printk("%s: \n",__func__);
+	unsigned int ret;
+
+	if(pin < GPIO_PIN_8){
+		ret = readl_relaxed(PIOOFFSET(pio,stm32_gpio_afrl));
+		ret >>= (pin<<2);
+	}
+	else{
+		ret = readl_relaxed(PIOOFFSET(pio,stm32_gpio_afrh));
+		ret >>= ((pin-GPIO_PIN_8)<<2);
+	}
+	ret &= 0xF;
+	return (enum stm32_pin_func)ret;
 }
+
 void stm32_set_periph(void __iomem *pio, unsigned int pin, enum stm32_pin_func func)
 {
+	unsigned int val;
 
+	if(pin < GPIO_PIN_8){
+		val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_afrl));
+		val |= (func << (pin<<2));
+		writel_relaxed(val, PIOOFFSET(pio,stm32_gpio_afrl));
+	}
+	else{
+		val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_afrh));
+		val |= (func << ((pin-GPIO_PIN_8)<<2));
+		writel_relaxed(val, PIOOFFSET(pio,stm32_gpio_afrh));
+	}
+	printk("%s: \n",__func__);
 }
 
 enum stm32_pin_pupdr stm32_get_pullupdown(void __iomem *pio, unsigned int pin)
 {
-	return (enum stm32_pin_pupdr)0;
+	printk("%s: \n",__func__);
+	unsigned int ret;
+
+	ret = readl_relaxed(PIOOFFSET(pio,stm32_gpio_pupdr));
+	ret >>= (pin<<1);
+	ret &= 0x3;
+
+	return (enum stm32_pin_pupdr)ret;
 }
 void stm32_set_pullupdown(void __iomem *pio, unsigned int pin, enum stm32_pin_pupdr pupd)
 {
+	unsigned int val;
+	printk("%s: \n",__func__);
 
+	val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_pupdr));
+	val |= (pupd << (pin<<1));
+	writel_relaxed(val, PIOOFFSET(pio,stm32_gpio_pupdr));
 }
 
 enum stm32_pin_ospeedr stm32_get_speed(void __iomem *pio, unsigned int pin)
 {
-	return (enum stm32_pin_ospeedr)0;
+	printk("%s: \n",__func__);
+	unsigned int ret;
+
+	ret = readl_relaxed(PIOOFFSET(pio,stm32_gpio_ospeedr));
+	ret >>= (pin<<1);
+	ret &= 0x3;
+
+	return (enum stm32_pin_ospeedr)ret;
 }
 void stm32_set_speed(void __iomem *pio, unsigned int pin, enum stm32_pin_ospeedr speed)
 {
+	unsigned int val;
+	printk("%s: \n",__func__);
 
+	val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_ospeedr));
+	val |= (speed << (pin<<1));
+	writel_relaxed(val, PIOOFFSET(pio,stm32_gpio_ospeedr));
 }
 
 enum stm32_pin_typer stm32_get_type(void __iomem *pio, unsigned int pin)
 {
-	return (enum stm32_pin_typer)0;
+	printk("%s: \n",__func__);
+	unsigned int ret;
+
+	ret = readl_relaxed(PIOOFFSET(pio,stm32_gpio_otyper));
+	ret >>= pin;
+	ret &= 1;
+
+	return (enum stm32_pin_typer)ret;
 }
 void stm32_set_type(void __iomem *pio, unsigned int pin, enum stm32_pin_typer type)
 {
+	unsigned int val;
+	printk("%s: \n",__func__);
 
+	val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_otyper));
+	val |= (type << pin);
+	writel_relaxed(val, PIOOFFSET(pio,stm32_gpio_otyper));
 }
 
 enum stm32_pin_moder stm32_get_mode(void __iomem *pio, unsigned int pin)
 {
-	return (enum stm32_pin_moder)0;
+	unsigned int ret;
+
+	ret = readl_relaxed(PIOOFFSET(pio,stm32_gpio_moder));
+	ret >>= (pin<<1);
+	ret &= 0x3;
+
+	return (enum stm32_pin_moder)ret;
 }
 void stm32_set_mode(void __iomem *pio, unsigned int pin, enum stm32_pin_moder mode)
 {
+	unsigned int val;
+	printk("%s: \n",__func__);
 
+	val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_moder));
+	val |= (mode << (pin<<1));
+	writel_relaxed(val, PIOOFFSET(pio,stm32_gpio_moder));
 }
 
 static int alt_gpio_irq_type(struct irq_data *d, unsigned type)
 {
 	struct stm32_gpio_chip *stm32_gpio = irq_data_get_irq_chip_data(d);
 	void __iomem	*pio = stm32_gpio->regbase;
-	unsigned	mask = 1 << d->hwirq;
+	void __iomem	*exti = g_exti_reg;
+	unsigned int	mask = 1 << d->hwirq;
+	unsigned int val = 0;
 
+//	printk("%s: d->hwirq = %x\n",__func__,d->hwirq);
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
 		__irq_set_handler_locked(d->irq, handle_simple_irq);
-//		writel_relaxed(mask, pio + PIO_ESR);
-//		writel_relaxed(mask, pio + PIO_REHLSR);
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_rtsr));
+		val |= mask;
+		writel_relaxed(mask, EXTIOFFSET(exti,stm32_exti_rtsr));
+
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_ftsr));
+		val &= ~mask;
+		writel_relaxed(mask, EXTIOFFSET(exti,stm32_exti_ftsr));
 		break;
 	case IRQ_TYPE_EDGE_FALLING:
 		__irq_set_handler_locked(d->irq, handle_simple_irq);
-//		writel_relaxed(mask, pio + PIO_ESR);
-//		writel_relaxed(mask, pio + PIO_FELLSR);
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_ftsr));
+		val |= mask;
+		writel_relaxed(mask, EXTIOFFSET(exti,stm32_exti_ftsr));
+
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_rtsr));
+		val &= ~mask;
+		writel_relaxed(mask, EXTIOFFSET(exti,stm32_exti_rtsr));
+		break;
+
+	case IRQ_TYPE_EDGE_BOTH:
+		__irq_set_handler_locked(d->irq, handle_simple_irq);
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_ftsr));
+		val |= mask;
+		writel_relaxed(mask, EXTIOFFSET(exti,stm32_exti_ftsr));
+
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_rtsr));
+		val |= mask;
+		writel_relaxed(mask, EXTIOFFSET(exti,stm32_exti_rtsr));
 		break;
 	case IRQ_TYPE_LEVEL_LOW:
-		__irq_set_handler_locked(d->irq, handle_level_irq);
+//		__irq_set_handler_locked(d->irq, handle_level_irq);
 //		writel_relaxed(mask, pio + PIO_LSR);
 //		writel_relaxed(mask, pio + PIO_FELLSR);
-		break;
+//		break;
 	case IRQ_TYPE_LEVEL_HIGH:
-		__irq_set_handler_locked(d->irq, handle_level_irq);
+//		__irq_set_handler_locked(d->irq, handle_level_irq);
 //		writel_relaxed(mask, pio + PIO_LSR);
 //		writel_relaxed(mask, pio + PIO_REHLSR);
-		break;
-	case IRQ_TYPE_EDGE_BOTH:
-		/*
-		 * disable additional interrupt modes:
-		 * fall back to default behavior
-		 */
-		__irq_set_handler_locked(d->irq, handle_simple_irq);
-//		writel_relaxed(mask, pio + PIO_AIMDR);
-		return 0;
+//		break;
 	case IRQ_TYPE_NONE:
 	default:
 		pr_warn("STM32: No type for irq %d\n", gpio_to_irq(d->irq));
@@ -229,7 +329,7 @@ static struct stm32_pinctrl_mux_ops stm32f429_ops = {
 	.set_type = stm32_set_type,
 	.get_mode = stm32_get_mode,
 	.set_mode = stm32_set_mode,
-	.irq_type	= alt_gpio_irq_type,
+	.irq_type = alt_gpio_irq_type,
 };
 
 
@@ -257,6 +357,7 @@ static int stm32_gpio_request(struct gpio_chip *chip, unsigned offset)
 	dev_dbg(chip->dev, "%s:%d pio%c%d(%d)\n", __func__, __LINE__,
 		 'A' + bank, offset, gpio);
 
+	printk("%s: \n",__func__);
 	return pinctrl_request_gpio(gpio);
 }
 
@@ -264,6 +365,7 @@ static void stm32_gpio_free(struct gpio_chip *chip, unsigned offset)
 {
 	int gpio = chip->base + offset;
 
+	printk("%s: \n",__func__);
 	pinctrl_free_gpio(gpio);
 }
 
@@ -271,20 +373,22 @@ static int stm32_gpio_get_direction(struct gpio_chip *chip, unsigned offset)
 {
 	struct stm32_gpio_chip *stm32_gpio = to_stm32_gpio_chip(chip);
 	void __iomem *pio = stm32_gpio->regbase;
-	unsigned mask = 1 << offset;
-	u32 osr = 0;
 
-	//osr = readl_relaxed(pio + PIO_OSR);
-	return !(osr & mask);
+	enum stm32_pin_moder mode;
+
+	printk("%s: \n",__func__);
+	mode = stm32_get_mode(pio, offset);
+
+	return (mode == GPIO_MODER_IN)?1:((mode==GPIO_MODER_OUT)?0:-1);
 }
 
 static int stm32_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 {
 	struct stm32_gpio_chip *stm32_gpio = to_stm32_gpio_chip(chip);
 	void __iomem *pio = stm32_gpio->regbase;
-	unsigned mask = 1 << offset;
 
-	//writel_relaxed(mask, pio + PIO_ODR);
+	printk("%s: \n",__func__);
+	stm32_set_mode(pio, offset, GPIO_MODER_IN);
 	return 0;
 }
 
@@ -292,11 +396,13 @@ static int stm32_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
 	struct stm32_gpio_chip *stm32_gpio = to_stm32_gpio_chip(chip);
 	void __iomem *pio = stm32_gpio->regbase;
-	unsigned mask = 1 << offset;
-	u32 pdsr = 0;
+	unsigned int val = 0;
 
-	//pdsr = readl_relaxed(pio + PIO_PDSR);
-	return (pdsr & mask) != 0;
+	printk("%s: \n",__func__);
+
+	val = readl_relaxed(PIOOFFSET(pio,stm32_gpio_idr));
+	val >>=offset;
+	return (val & 1);
 }
 
 static void stm32_gpio_set(struct gpio_chip *chip, unsigned offset,
@@ -304,9 +410,13 @@ static void stm32_gpio_set(struct gpio_chip *chip, unsigned offset,
 {
 	struct stm32_gpio_chip *stm32_gpio = to_stm32_gpio_chip(chip);
 	void __iomem *pio = stm32_gpio->regbase;
-	unsigned mask = 1 << offset;
+	unsigned int reg = 0;
 
-	//writel_relaxed(mask, pio + (val ? PIO_SODR : PIO_CODR));
+	printk("%s: \n",__func__);
+
+	reg = readl_relaxed(PIOOFFSET(pio,stm32_gpio_odr));
+	reg |= (val << offset);
+	writel_relaxed(reg, PIOOFFSET(pio,stm32_gpio_odr));
 }
 
 static int stm32_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
@@ -316,8 +426,9 @@ static int stm32_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
 	void __iomem *pio = stm32_gpio->regbase;
 	unsigned mask = 1 << offset;
 
-	//writel_relaxed(mask, pio + (val ? PIO_SODR : PIO_CODR));
-	//writel_relaxed(mask, pio + PIO_OER);
+	printk("%s: \n",__func__);
+
+	stm32_set_mode(pio, offset, GPIO_MODER_OUT);
 
 	return 0;
 }
@@ -375,11 +486,15 @@ static struct gpio_chip stm32_gpio_template = {
 static void gpio_irq_mask(struct irq_data *d)
 {
 	struct stm32_gpio_chip *stm32_gpio = irq_data_get_irq_chip_data(d);
-	void __iomem	*pio = stm32_gpio->regbase;
-	unsigned	mask = 1 << d->hwirq;
+	void __iomem	*exti = g_exti_reg;
+	unsigned int	mask = 1 << d->hwirq;
 
-	if (pio){
-//		writel_relaxed(mask, pio + PIO_IDR);
+	printk("%s: d->hwirq = %x\n",__func__,d->hwirq);
+	if (exti){
+		unsigned int val;
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_imr));
+		val &= ~mask;
+		writel_relaxed(val, EXTIOFFSET(exti,stm32_exti_imr));
 	}
 }
 
@@ -387,10 +502,16 @@ static void gpio_irq_unmask(struct irq_data *d)
 {
 	struct stm32_gpio_chip *stm32_gpio = irq_data_get_irq_chip_data(d);
 	void __iomem	*pio = stm32_gpio->regbase;
+	void __iomem	*exti = g_exti_reg;
 	unsigned	mask = 1 << d->hwirq;
 
+
+	printk("%s: d->hwirq = %x\n",__func__,d->hwirq);
 	if (pio){
-//		writel_relaxed(mask, pio + PIO_IER);
+		unsigned int val;
+		val = readl_relaxed(EXTIOFFSET(exti,stm32_exti_imr));
+		val |= mask;
+		writel_relaxed(val, EXTIOFFSET(exti,stm32_exti_imr));
 	}
 }
 
@@ -399,13 +520,68 @@ static void gpio_irq_unmask(struct irq_data *d)
 static void gpio_irq_ack(struct irq_data *d)
 {
 	/* the interrupt is already cleared before by reading ISR */
+	printk("%s: \n",__func__);
 }
+
+
+//static int setup_exti_line(struct stm32_gpio_chip *stm32_gpio, unsigned pin)
+static int setup_exti_line(struct stm32_pinctrl *info, unsigned int pin)
+{
+	unsigned int bank = info->groups->pins_conf->bank;
+	unsigned int new_val;
+	unsigned int val;
+
+	if(pin < 4){
+		//exti0-3;
+		new_val = (bank)<<(4*(pin%4));
+		val = readl_relaxed(SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr1));
+		if(val & new_val)
+			return -1;
+		val |= new_val;
+		writel_relaxed(val,SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr1));
+	}
+	else if(pin < 8){
+		//exti4-7
+		new_val = (bank)<<(4*(pin%4));
+		val = readl_relaxed(SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr2));
+		if(val & new_val)
+			return -1;
+		val |= new_val;
+		writel_relaxed(val,SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr2));
+	}
+	else if(pin < 12){
+		//exti8-11
+		new_val = (bank)<<(4*(pin%4));
+		val = readl_relaxed(SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr3));
+		if(val & new_val)
+			return -1;
+		val |= new_val;
+		writel_relaxed(val,SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr3));
+	}
+	else if(pin < 15){
+		//exti12-15
+		new_val = (bank)<<(4*(pin%4));
+		val = readl_relaxed(SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr4));
+		if(val & new_val)
+			return -1;
+		val |= new_val;
+		writel_relaxed(val,SYSCFGOFFSET(g_syscfg_reg,stm32_syscfg_exticr4));
+	}
+	else
+		return -2;
+	return 0;
+}
+
 
 static unsigned int gpio_irq_startup(struct irq_data *d)
 {
 	struct stm32_gpio_chip *stm32_gpio = irq_data_get_irq_chip_data(d);
+//	void __iomem	*exti = g_exti_reg;
 	unsigned	pin = d->hwirq;
 	int ret;
+
+
+	printk("%s: d->hwirq = %x\n",__func__,d->hwirq);
 
 	ret = gpio_lock_as_irq(&stm32_gpio->chip, pin);
 	if (ret) {
@@ -422,6 +598,8 @@ static void gpio_irq_shutdown(struct irq_data *d)
 	struct stm32_gpio_chip *stm32_gpio = irq_data_get_irq_chip_data(d);
 	unsigned	pin = d->hwirq;
 
+
+	printk("%s: d->hwirq = %x\n",__func__,d->hwirq);
 	gpio_irq_mask(d);
 	gpio_unlock_as_irq(&stm32_gpio->chip, pin);
 }
@@ -445,16 +623,18 @@ static void gpio_irq_handler(unsigned irq, struct irq_desc *desc)
 	struct stm32_gpio_chip *stm32_gpio = container_of(gpio_chip, struct stm32_gpio_chip, chip);
 
 	void __iomem	*pio = stm32_gpio->regbase;
+	void __iomem	*exti = g_exti_reg;
 	unsigned long	isr;
 	int		n;
 
+	printk("%s: \n",__func__);
 	chained_irq_enter(chip, desc);
 	for (;;) {
 		/* Reading ISR acks pending (edge triggered) GPIO interrupts.
 		 * When there are none pending, we're finished unless we need
 		 * to process multiple banks (like ID_PIOCDE on sam9263).
 		 */
-//		isr = readl_relaxed(pio + PIO_ISR) & readl_relaxed(pio + PIO_IMR);
+		isr = readl_relaxed(EXTIOFFSET(exti,stm32_exti_pr)) & readl_relaxed(EXTIOFFSET(exti,stm32_exti_imr));
 		if (!isr) {
 			if (!stm32_gpio->next)
 				break;
@@ -478,9 +658,11 @@ static int stm32_gpio_of_irq_setup(struct device_node *node,
 	struct stm32_gpio_chip   *prev = NULL;
 	struct irq_data		*d = irq_get_irq_data(stm32_gpio->pioc_virq);
 	int ret;
+//	void __iomem	*exti = stm32_gpio->exti;
 
 	stm32_gpio->pioc_hwirq = irqd_to_hwirq(d);
 
+	printk("%s: stm32_gpio->pioc_hwirq = %x\n",__func__,stm32_gpio->pioc_hwirq);
 	/* Setup proper .irq_set_type function */
 	gpio_irqchip.irq_set_type = stm32_gpio->ops->irq_type;
 
@@ -527,9 +709,9 @@ static void stm32_gpio_probe_fixup(void)
 	unsigned i;
 	struct stm32_gpio_chip *stm32_gpio, *last = NULL;
 
+	printk("%s: \n",__func__);
 	for (i = 0; i < gpio_banks; i++) {
 		stm32_gpio = gpio_chips[i];
-
 		/*
 		 * GPIO controller are grouped on some SoC:
 		 * PIOC, PIOD and PIOE can share the same IRQ line
@@ -540,19 +722,31 @@ static void stm32_gpio_probe_fixup(void)
 	}
 }
 
+inline static void stm32_gpio_core_interrupt_ctrl_config(void)
+{
+	g_syscfg_reg = ioremap(STM32_SYSCFG_REGBASE, STM32_SYSCFG_MEM_SIZE);
+	g_exti_reg = ioremap(STM32_EXTI_REGBASE, STM32_EXTI_MEM_SIZE);
+}
+
 static int stm32_gpio_core_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
+	struct device_node *np = NULL;
 	struct resource *res;
 	struct stm32_gpio_chip *stm32_chip = NULL;
 	struct gpio_chip *chip;
 	struct pinctrl_gpio_range *range;
 	int ret = 0;
 	int irq, i;
-	int alias_idx = of_alias_get_id(np, "gpio");
+	int alias_idx;
 	uint32_t ngpio;
 	char **names;
 
+	if(pdev)
+		np = pdev->dev.of_node;
+	if(np)
+		alias_idx = of_alias_get_id(np, "gpio");
+
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	BUG_ON(alias_idx >= ARRAY_SIZE(gpio_chips));
 	if (gpio_chips[alias_idx]) {
 		ret = -EBUSY;
@@ -577,6 +771,8 @@ static int stm32_gpio_core_probe(struct platform_device *pdev)
 		ret = PTR_ERR(stm32_chip->regbase);
 		goto err;
 	}
+
+	dev_dbg(&pdev->dev, "at address %p; syscfg: %p; exti: %p\n", stm32_chip->regbase,g_syscfg_reg,g_exti_reg);
 
 	stm32_chip->ops = (struct stm32_pinctrl_mux_ops *)
 		of_match_device(stm32_gpio_of_match, &pdev->dev)->data;
@@ -643,7 +839,7 @@ static int stm32_gpio_core_probe(struct platform_device *pdev)
 	gpio_chips[alias_idx] = stm32_chip;
 	gpio_banks = max(gpio_banks, alias_idx + 1);
 
-	stm32_gpio_probe_fixup();
+//	stm32_gpio_probe_fixup();
 
 	stm32_gpio_of_irq_setup(np, stm32_chip);
 
@@ -663,7 +859,7 @@ err:
 
 static int stm32_gpio_probe(struct platform_device *pdev)
 {
-	printk("%s: \n",__func__);
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	return stm32_gpio_core_probe(pdev);
 }
 
@@ -675,6 +871,7 @@ static int pin_check_config(struct stm32_pinctrl *info, const char *name,
 {
 	int mux;
 
+	printk("%s: \n",__func__);
 	/* check if it's a valid config */
 	if (pin->bank >= info->nbanks) {
 		dev_err(info->dev, "%s: pin conf %d bank_id %d >= nbanks %d\n",
@@ -711,10 +908,10 @@ static int pin_check_config(struct stm32_pinctrl *info, const char *name,
 static void stm32_pin_dbg(const struct device *dev, const struct stm32_pmx_pin *pin)
 {
 	if (pin->mux) {
-		dev_dbg(dev, "pio%c%d configured as periph%c with conf = 0x%x\n",
-			pin->bank + 'A', pin->pin, pin->mux - 1 + 'A', pin->conf);
+		dev_dbg(dev, "pio%c%d configured as periph %c with conf = 0x%lx\n",
+			pin->bank + 'A', pin->pin, pin->mux, pin->conf);
 	} else {
-		dev_dbg(dev, "pio%c%d configured as gpio with conf = 0x%x\n",
+		dev_dbg(dev, "pio%c%d configured as gpio with conf = 0x%lx\n",
 			pin->bank + 'A', pin->pin, pin->conf);
 	}
 }
@@ -723,6 +920,7 @@ static int stm32_get_groups_count(struct pinctrl_dev *pctldev)
 {
 	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	return info->ngroups;
 }
 
@@ -731,6 +929,7 @@ static const char *stm32_get_group_name(struct pinctrl_dev *pctldev,
 {
 	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	return info->groups[selector].name;
 }
 
@@ -740,6 +939,7 @@ static int stm32_get_group_pins(struct pinctrl_dev *pctldev, unsigned selector,
 {
 	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	if (selector >= info->ngroups)
 		return -EINVAL;
 
@@ -752,6 +952,7 @@ static int stm32_get_group_pins(struct pinctrl_dev *pctldev, unsigned selector,
 static void stm32_pin_dbg_show(struct pinctrl_dev *pctldev, struct seq_file *s,
 		   unsigned offset)
 {
+	printk("%s: \n",__func__);
 	seq_printf(s, "%s", dev_name(pctldev->dev));
 }
 
@@ -762,6 +963,7 @@ static const inline struct stm32_pin_group *stm32_pinctrl_find_group_by_name(
 	const struct stm32_pin_group *grp = NULL;
 	int i;
 
+	printk("%s: \n",__func__);
 	for (i = 0; i < info->ngroups; i++) {
 		if (strcmp(info->groups[i].name, name))
 			continue;
@@ -785,6 +987,7 @@ static int stm32_dt_node_to_map(struct pinctrl_dev *pctldev,
 	int map_num = 1;
 	int i;
 
+	printk("%s: \n",__func__);
 	/*
 	 * first find the group of this node and check if we need to create
 	 * config maps for pins
@@ -834,6 +1037,7 @@ static int stm32_dt_node_to_map(struct pinctrl_dev *pctldev,
 static void stm32_dt_free_map(struct pinctrl_dev *pctldev,
 				struct pinctrl_map *map, unsigned num_maps)
 {
+	printk("%s: \n",__func__);
 }
 
 static const struct pinctrl_ops stm32_pctrl_ops = {
@@ -847,6 +1051,7 @@ static const struct pinctrl_ops stm32_pctrl_ops = {
 
 static void stm32_mux_disable_interrupt(void __iomem *pio, unsigned mask)
 {
+	printk("%s: \n",__func__);
 	//writel_relaxed(mask, pio + PIO_IDR);
 }
 
@@ -854,6 +1059,7 @@ static int stm32_pmx_get_funcs_count(struct pinctrl_dev *pctldev)
 {
 	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	return info->nfunctions;
 }
 
@@ -862,6 +1068,7 @@ static const char *stm32_pmx_get_func_name(struct pinctrl_dev *pctldev,
 {
 	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	return info->functions[selector].name;
 }
 
@@ -871,6 +1078,7 @@ static int stm32_pmx_get_groups(struct pinctrl_dev *pctldev, unsigned selector,
 {
 	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	*groups = info->functions[selector].groups;
 	*num_groups = info->functions[selector].ngroups;
 
@@ -888,6 +1096,7 @@ static int stm32_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 	unsigned mask;
 	void __iomem *pio;
 
+	printk("%s: \n",__func__);
 	dev_dbg(info->dev, "enable function %s group %s\n",
 		info->functions[selector].name, info->groups[group].name);
 
@@ -904,30 +1113,17 @@ static int stm32_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 		pin = &pins_conf[i];
 		stm32_pin_dbg(info->dev, pin);
 		pio = pin_to_controller(info, pin->bank);
-		mask = pin_to_mask(pin->pin);
-		stm32_mux_disable_interrupt(pio, mask);
+
+		//mask = pin_to_mask(pin->pin);
+		//stm32_mux_disable_interrupt(pio, mask);
+
+		if(!info->ops->set_periph)
+			return -EINVAL;
+
+		info->ops->set_periph(pio, pin->pin, pin->mux);
+
+
 /*
-		switch (pin->mux) {
-		case AT91_MUX_GPIO:
-			at91_mux_gpio_enable(pio, mask, 1);
-			break;
-		case AT91_MUX_PERIPH_A:
-			info->ops->mux_A_periph(pio, mask);
-			break;
-		case AT91_MUX_PERIPH_B:
-			info->ops->mux_B_periph(pio, mask);
-			break;
-		case AT91_MUX_PERIPH_C:
-			if (!info->ops->mux_C_periph)
-				return -EINVAL;
-			info->ops->mux_C_periph(pio, mask);
-			break;
-		case AT91_MUX_PERIPH_D:
-			if (!info->ops->mux_D_periph)
-				return -EINVAL;
-			info->ops->mux_D_periph(pio, mask);
-			break;
-		}
 		if (pin->mux)
 			at91_mux_gpio_disable(pio, mask);
 */
@@ -945,6 +1141,7 @@ static int stm32_gpio_request_enable(struct pinctrl_dev *pctldev,
 	struct gpio_chip *chip;
 	unsigned mask;
 
+	printk("%s: \n",__func__);
 	if (!range) {
 		dev_err(npct->dev, "invalid range\n");
 		return -EINVAL;
@@ -974,6 +1171,7 @@ static void stm32_gpio_disable_free(struct pinctrl_dev *pctldev,
 {
 	struct stm32_pinctrl *npct = pinctrl_dev_get_drvdata(pctldev);
 
+	printk("%s: \n",__func__);
 	dev_dbg(npct->dev, "disable pin %u as GPIO\n", offset);
 	/* Set the pin to some default state, GPIO is usually default */
 }
@@ -995,18 +1193,33 @@ static int stm32_pinconf_get(struct pinctrl_dev *pctldev,
 	unsigned pin;
 	int div;
 
+	enum stm32_pin_moder mode = 0;
+	enum stm32_pin_typer otype = 0;
+	enum stm32_pin_ospeedr ospeed = 0;
+	enum stm32_pin_pupdr pupd = 0;
+
+
+	printk("%s: \n",__func__);
 	*config = 0;
 	dev_dbg(info->dev, "%s:%d, pin_id=%d", __func__, __LINE__, pin_id);
 	pio = pin_to_controller(info, pin_to_bank(pin_id));
 	pin = pin_id % MAX_NB_GPIO_PER_BANK;
-/*
-	if (info->ops->get_opendrain && info->ops->get_opendrain(pio, pin))
-		*config |= OPENDRAIN;
-	if (info->ops->get_pullupdown && info->ops->get_pullupdown(pio, pin, &div))
-		*config |= PULL_UP;
-	if (info->ops->get_pulldown && info->ops->get_pulldown(pio, pin))
-		*config |= PULL_DOWN;
-*/
+
+
+	if(info->ops->set_mode){
+		mode = info->ops->get_mode(pio, pin);
+	}
+	if(info->ops->set_type){
+		otype = info->ops->get_type(pio, pin);
+	}
+	if(info->ops->set_speed){
+		ospeed = info->ops->get_speed(pio, pin);
+	}
+	if(info->ops->set_pullupdown){
+		pupd = info->ops->get_pullupdown(pio, pin);
+	}
+
+	*config = STM32_GPIO_PIN_CONFIG(info->groups->pins_conf->use_exti_line,mode,otype,ospeed,pupd);
 
 	return 0;
 }
@@ -1015,7 +1228,36 @@ static int stm32_pinconf_set(struct pinctrl_dev *pctldev,
 			     unsigned pin_id, unsigned long *configs,
 			     unsigned num_configs)
 {
-//TODO
+	struct stm32_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
+	unsigned int pin;
+	void __iomem *pio;
+	int i;
+	unsigned long config;
+
+	for (i = 0; i < num_configs; i++) {
+		config = configs[i];
+
+		dev_dbg(info->dev,
+			"%s:%d, pin_id=%d, config=0x%lx",
+			__func__, __LINE__, pin_id, config);
+		pio = pin_to_controller(info, pin_to_bank(pin_id));
+		pin = pin_id % MAX_NB_GPIO_PER_BANK;
+
+		if(info->ops->set_mode){
+			info->ops->set_mode(pio, pin, STM32_GPIO_PIN_GET_MODER(config));
+		}
+		if(info->ops->set_pullupdown){
+			info->ops->set_pullupdown(pio, pin, STM32_GPIO_PIN_GET_PUPDR(config));
+		}
+		if(info->ops->set_speed){
+			info->ops->set_speed(pio, pin, STM32_GPIO_PIN_GET_OSPEEDR(config));
+		}
+		if(info->ops->set_type){
+			info->ops->set_type(pio, pin, STM32_GPIO_PIN_GET_OTYPER(config));
+		}
+
+	} /* for each config */
+
 	return 0;
 }
 
@@ -1025,6 +1267,7 @@ static void stm32_pinconf_dbg_show(struct pinctrl_dev *pctldev,
 	unsigned long config;
 	int val, num_conf = 0;
 
+	printk("%s: \n",__func__);
 //	stm32_pinconf_get(pctldev, pin_id, &config);
 
 	return;
@@ -1033,6 +1276,7 @@ static void stm32_pinconf_dbg_show(struct pinctrl_dev *pctldev,
 static void stm32_pinconf_group_dbg_show(struct pinctrl_dev *pctldev,
 					 struct seq_file *s, unsigned group)
 {
+	printk("%s: \n",__func__);
 }
 
 static const struct pinconf_ops stm32_pinconf_ops = {
@@ -1054,6 +1298,7 @@ static void stm32_pinctrl_child_count(struct stm32_pinctrl *info,
 {
 	struct device_node *child;
 
+	printk("%s: \n",__func__);
 	for_each_child_of_node(np, child) {
 		if (of_device_is_compatible(child, gpio_compat)) {
 			info->nbanks++;
@@ -1106,6 +1351,7 @@ static int stm32_pinctrl_parse_groups(struct device_node *np,
 	const __be32 *list;
 	int i, j;
 
+	printk("%s: \n",__func__);
 	dev_dbg(info->dev, "group(%d): %s\n", index, np->name);
 
 	/* Initialise group */
@@ -1138,6 +1384,28 @@ static int stm32_pinctrl_parse_groups(struct device_node *np,
 		pin->mux = be32_to_cpu(*list++);
 		pin->conf = be32_to_cpu(*list++);
 
+		if(STM32_GPIO_PIN_GET_EXTI_IS_SET(pin->conf))
+		{
+			int ret;
+
+			if(pin->use_exti_line){
+				printk("%s: EXTI already set\n",__func__);
+				goto exit;
+			}
+			pin->use_exti_line = 1;
+
+			ret = setup_exti_line(info,pin->pin);
+			if(ret == -1){
+				dev_dbg(info->dev,"%s: line for pin%c-%d taken already\n",__func__,pin->bank+'A',pin->pin);
+			}
+			else if(ret < 0){
+				dev_dbg(info->dev,"%s: error in specifying EXTI line for pin%c-%d n",__func__,pin->bank+'A',pin->pin);
+			}
+			else{
+				dev_dbg(info->dev,"%s: EXTI line for pin%c-%d set up\n",__func__,pin->bank+'A',pin->pin);
+			}
+		}
+exit:
 		stm32_pin_dbg(info->dev, pin);
 		pin++;
 	}
@@ -1155,6 +1423,7 @@ static int stm32_pinctrl_parse_functions(struct device_node *np,
 	static unsigned int grp_index;
 	unsigned int i = 0;
 
+	printk("%s: \n",__func__);
 	dev_dbg(info->dev, "parse function(%d): %s\n", index, np->name);
 
 	func = &info->functions[index];
@@ -1192,6 +1461,7 @@ static int stm32_pinctrl_probe_dt(struct platform_device *pdev,
 	struct device_node *np = pdev->dev.of_node;
 	struct device_node *child;
 
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	if (!np)
 		return -ENODEV;
 
@@ -1255,10 +1525,13 @@ static int stm32_pinctrl_core_probe(struct platform_device *pdev)
 	struct stm32_pinctrl *info;
 	struct pinctrl_pin_desc *pdesc;
 	int ret, i, j, k;
-	printk("%s: \n",__func__);
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
+
+
+	stm32_gpio_core_interrupt_ctrl_config();
 
 	ret = stm32_pinctrl_probe_dt(pdev, info);
 	if (ret)
@@ -1317,7 +1590,7 @@ err:
 static int stm32_pinctrl_core_remove(struct platform_device *pdev)
 {
 	struct stm32_pinctrl *info = platform_get_drvdata(pdev);
-	printk("%s: \n",__func__);
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	pinctrl_unregister(info->pctl);
 
 	return 0;
@@ -1326,13 +1599,13 @@ static int stm32_pinctrl_core_remove(struct platform_device *pdev)
 ///
 static int stm32_pinctrl_probe(struct platform_device *pdev)
 {
-	printk("%s: \n",__func__);
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	return stm32_pinctrl_core_probe(pdev);
 }
 
 static int stm32_pinctrl_remove(struct platform_device *pdev)
 {
-	printk("%s: \n",__func__);
+	dev_dbg(&pdev->dev,"%s: \n",__func__);
 	return stm32_pinctrl_core_remove(pdev);
 }
 
@@ -1360,10 +1633,13 @@ static int __init stm32_pinctrl_init(void)
 	int ret;
 
 	printk("%s: \n",__func__);
+
 	ret = platform_driver_register(&stm32_gpio_driver);
 	if (ret)
 		return ret;
-	return platform_driver_register(&stm32_pinctrl_driver);
+	ret = platform_driver_register(&stm32_pinctrl_driver);
+
+	return ret;
 }
 arch_initcall(stm32_pinctrl_init);
 

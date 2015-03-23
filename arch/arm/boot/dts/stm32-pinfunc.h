@@ -34,6 +34,25 @@
 #define GPIO_PIN_14	14
 #define GPIO_PIN_15	15
 
+#define EXTI_IRQ_OFF	0
+#define EXTI_IRQ_ON	1
+
+#define EXTI_0	0
+#define EXTI_1	1
+#define EXTI_2	2
+#define EXTI_3	3
+#define EXTI_4	4
+#define EXTI_5	5
+#define EXTI_6	6
+#define EXTI_7	7
+#define EXTI_8	8
+#define EXTI_9	9
+#define EXTI_10	10
+#define EXTI_11	11
+#define EXTI_12	12
+#define EXTI_13	13
+#define EXTI_14	14
+#define EXTI_15	15
 
 #define GPIO_ALT_SYSTEM		0
 #define GPIO_ALT_TIM_1_2	1
@@ -52,28 +71,28 @@
 #define GPIO_ALT_LTDC		14
 #define GPIO_ALT_EVENTOUT	15
 
-#define STM32_GPIO_MODER_IN	0
-#define STM32_GPIO_MODER_OUT	1
-#define STM32_GPIO_MODER_AF	2
-#define STM32_GPIO_MODER_ANALOG	3
-#define STM32_GPIO_MODER_MASK	3
+#define GPIO_MODER_IN	0
+#define GPIO_MODER_OUT	1
+#define GPIO_MODER_AF	2
+#define GPIO_MODER_ANALOG	3
+#define GPIO_MODER_MASK	3
 
-#define STM32_GPIO_OTYPER_PP	0
-#define STM32_GPIO_OTYPER_OD	1
-#define STM32_GPIO_OTYPER_MASK	1
+#define GPIO_OTYPER_PP	0
+#define GPIO_OTYPER_OD	1
+#define GPIO_OTYPER_MASK	1
 
-#define SMT32_GPIO_OSPEEDR_LS	0
-#define STM32_GPIO_OSPEEDR_MS	1
-#define STM32_GPIO_OSPEEDR_FS	2
-#define STM32_GPIO_OSPEEDR_LS	3
-#define STM32_GPIO_OSPEEDR_MASK	3
+#define GPIO_OSPEEDR_LS	0
+#define GPIO_OSPEEDR_MS	1
+#define GPIO_OSPEEDR_FS	2
+//#define GPIO_OSPEEDR_LS	3
+#define GPIO_OSPEEDR_MASK	3
 
-#define STM32_GPIO_PUPDR_NONE	0
-#define	STM32_GPIO_PUPDR_PUP	1
-#define	STM32_GPIO_PUPDR_PDOWN	2
-#define	STM32_GPIO_PUPDR_MASK	3
+#define GPIO_PUPDR_NONE	0
+#define	GPIO_PUPDR_PUP	1
+#define	GPIO_PUPDR_PDOWN	2
+#define	GPIO_PUPDR_MASK	3
 
-//#define STM32_GPIO_PIN_CONFIG(m,t,sp,pu) ((m<<5)|(t<<4)|(sp<<2)|(pu))
+#define GPIO_PIN_CONFIG(i,m,t,sp,pu) ((i<<11)|(m<<5)|(t<<4)|(sp<<2)|(pu))
 #define PIO_PULL_NONE	0
 #define PIO_PULL_UP	1
 #define PIO_PULL_DOWN	2

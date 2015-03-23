@@ -9,8 +9,7 @@
 #define STM32_PINCFG_H_
 
 
-#define STM32_GPIO_CONTROLLER_MEM_SIZE	0x3FF
-
+#define STM32_GPIO_CONTROLLER_MEM_SIZE	0x400
 struct stm32_gpio_regs {
 	unsigned int stm32_gpio_moder;
 	unsigned int stm32_gpio_otyper;
@@ -25,6 +24,36 @@ struct stm32_gpio_regs {
 	/* keep the rest of the controller memory reserved */
 	unsigned char reserved[STM32_GPIO_CONTROLLER_MEM_SIZE-(10*sizeof(unsigned int))];
 };
+#define PIOOFFSET(_p, _o) ((void __iomem *)&((struct stm32_gpio_regs *)_p)->_o)
+
+#define STM32_SYSCFG_REGBASE	0x40013800
+#define STM32_SYSCFG_MEM_SIZE	0x400
+struct stm32_syscfg_regs {
+	unsigned int stm32_syscfg_memrmp;
+	unsigned int stm32_syscfg_pmc;
+	unsigned int stm32_syscfg_exticr1;
+	unsigned int stm32_syscfg_exticr2;
+	unsigned int stm32_syscfg_exticr3;
+	unsigned int stm32_syscfg_exticr4;
+	unsigned int stm32_syscfg_cmpcr;
+	/* keep the rest of the controller memory reserved */
+	unsigned char reserved[STM32_SYSCFG_MEM_SIZE-(7*sizeof(unsigned int))];
+};
+#define SYSCFGOFFSET(_s, _o) ((void __iomem *)&((struct stm32_syscfg_regs *)_s)->_o)
+
+#define STM32_EXTI_REGBASE	0x40013c00
+#define STM32_EXTI_MEM_SIZE	0x400
+struct stm32_exti_regs {
+	unsigned int stm32_exti_imr;
+	unsigned int stm32_exti_emr;
+	unsigned int stm32_exti_rtsr;
+	unsigned int stm32_exti_ftsr;
+	unsigned int stm32_exti_swier;
+	unsigned int stm32_exti_pr;
+	/* keep the rest of the controller memory reserved */
+	unsigned char reserved[STM32_EXTI_MEM_SIZE-(6*sizeof(unsigned int))];
+};
+#define EXTIOFFSET(_e, _o) ((void __iomem *)&((struct stm32_exti_regs *)_e)->_o)
 
 #define STM32_GPIO_MODER_IN	0
 #define STM32_GPIO_MODER_OUT	1
@@ -71,12 +100,40 @@ enum stm32_pin_pupdr{
 	GPIO_PUPDR_PDOWN,
 };
 
-#define STM32_GPIO_PIN_CONFIG(m,t,sp,pu) ((m<<5)|(t<<4)|(sp<<2)|(pu))
-#define STM32_GPIO_PIN_GET_MODER(v) ((v>>5)&STM32_GPIO_MODER_MASK)
-#define STM32_GPIO_PIN_GET_OTYPER(v) ((v>>4)&STM32_GPIO_OTYPER_MASK)
-#define STM32_GPIO_PIN_GET_OSPEEDR(v) ((v>>2)&STM32_GPIO_OSPEEDR_MASK)
-#define STM32_GPIO_PIN_GET_PUPDR(v) ((v)&STM32_GPIO_PUPDR_MASK)
+#define STM32_GPIO_PUPDR_NONE	0
+#define	STM32_GPIO_PUPDR_PUP	1
+#define	STM32_GPIO_PUPDR_PDOWN	2
+#define	STM32_GPIO_PUPDR_MASK	3
 
+enum stm32_pin_exti{
+	EXTI_0,
+	EXTI_1,
+	EXTI_2,
+	EXTI_3,
+	EXTI_4,
+	EXTI_5,
+	EXTI_6,
+	EXTI_7,
+	EXTI_8,
+	EXTI_9,
+	EXTI_10,
+	EXTI_11,
+	EXTI_12,
+	EXTI_13,
+	EXTI_14,
+	EXTI_15,
+};
+#define STM32_GPIO_EXTI_LINE_MASK (0xF)
+
+#define EXTI_IRQ_OFF	0
+#define EXTI_IRQ_ON	1
+
+#define STM32_GPIO_PIN_CONFIG(i,m,t,sp,pu) (((i)<<11)|((m)<<5)|((t)<<4)|((sp)<<2)|(pu))
+#define STM32_GPIO_PIN_GET_EXTI_IS_SET(v) (((v)>>11)&1)
+#define STM32_GPIO_PIN_GET_MODER(v) (((v)>>5)&STM32_GPIO_MODER_MASK)
+#define STM32_GPIO_PIN_GET_OTYPER(v) (((v)>>4)&STM32_GPIO_OTYPER_MASK)
+#define STM32_GPIO_PIN_GET_OSPEEDR(v) (((v)>>2)&STM32_GPIO_OSPEEDR_MASK)
+#define STM32_GPIO_PIN_GET_PUPDR(v) ((v)&STM32_GPIO_PUPDR_MASK)
 
 #define STM32_GPIO_IDR	0
 #define STM32_GPIO_ODR	0

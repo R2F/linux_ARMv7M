@@ -1,10 +1,21 @@
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
 #include "armv7-m.dtsi"
 #include "stm32-pinfunc.h"
 
 / {
 	aliases {
 		serial0 = &uart0;
-		gpioa = &gpio0;
+		uart0 = &uart0;
+		gpio0 = &gpio0;
+		gpio1 = &gpio1;
+		gpio2 = &gpio2;
+		gpio3 = &gpio3;
+		gpio4 = &gpio4;
+		gpio5 = &gpio5;
+		gpio6 = &gpio6;
+
 	};
 
 	cpus {
@@ -19,26 +30,17 @@
 	};
 
 	soc {
-		pinctrl: pinctrl@40020000 { /* GPIOA-K */
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "stm32,stm32-pinctrl";
-			ranges = <0x40020000 0x40020000 0x2C00>; /* 0x400*0xB */
-			
-			gpio0 {
-				pinctrl_gpio0: gpio-0 {
-					stm32,pins =
-						<GPIO_PORT_A GPIO_PIN_14 GPIO_ALT_SYSTEM PIO_PULL_UP
-						 GPIO_PORT_A GPIO_PIN_15 GPIO_ALT_SYSTEM PIO_PULL_UP>;
-				};
-			};
-		};
+
 		
 		uart0: uart@40011000 { /* USART0 */
 			compatible = "stm32,stm32-usart";
 			reg = <0x40011000 0x400>;
 			interrupts = <37>;
 			status = "disabled";
+			/*
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_uart0>;
+			*/
 		};
 		
 		timer2: timer@40000000 {
@@ -62,19 +64,121 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges;
-			
+
 			/* peryferia */
-			gpio0: gpio@40020000 {
-				compatible = "stm32,gpio";
-				reg = <0x40020000 0x400>;
-			/*	interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
-				gpio-controller;
-				#gpio-cells = <2>;
-				#interrupt-cells = <2>;
-			*/
-				pinctrl-names = "default";
-				pinctrl-0 = <&pinctrl_gpio0>;
-			
+			pinctrl: pinctrl@40020000 { /* GPIOA-K */
+				#address-cells = <1>;
+				#size-cells = <1>;
+				compatible = "stm32,stm32-pinctrl", "simple-bus";
+				ranges = <0x40020000 0x40020000 0x2C00>; /* 0x400*0xB */
+				
+				uart0 {
+					pinctrl_uart0: uart-0 {
+						stm32,pins =
+							<GPIO_PORT_A GPIO_PIN_9 GPIO_ALT_USART_1_3 GPIO_PIN_CONFIG(0,GPIO_MODER_IN, GPIO_OTYPER_PP, GPIO_OSPEEDR_FS, GPIO_PUPDR_PUP)
+							 GPIO_PORT_A GPIO_PIN_10 GPIO_ALT_USART_1_3 GPIO_PIN_CONFIG(0,GPIO_MODER_OUT, GPIO_OTYPER_OD, GPIO_OSPEEDR_FS, GPIO_PUPDR_PDOWN) >;
+					};
+				};
+				
+				gpio0 {
+					pinctrl_gpio0: gpio-0 {
+						stm32,pins =
+							<GPIO_PORT_A GPIO_PIN_0 GPIO_ALT_SYSTEM GPIO_PIN_CONFIG(1, GPIO_MODER_IN, GPIO_OTYPER_PP, GPIO_OSPEEDR_LS, GPIO_PUPDR_PUP)
+							 GPIO_PORT_A GPIO_PIN_9 GPIO_ALT_SYSTEM GPIO_PIN_CONFIG(1, GPIO_MODER_IN, GPIO_OTYPER_PP, GPIO_OSPEEDR_FS, GPIO_PUPDR_PUP)
+							 GPIO_PORT_A GPIO_PIN_10 GPIO_ALT_SYSTEM GPIO_PIN_CONFIG(1, GPIO_MODER_OUT, GPIO_OTYPER_OD, GPIO_OSPEEDR_FS, GPIO_PUPDR_PDOWN) >;
+					};
+				};
+				
+				gpio6 {
+					pinctrl_gpio6: gpio-6 {
+						stm32,pins =
+							<GPIO_PORT_G GPIO_PIN_13 GPIO_ALT_SYSTEM GPIO_PIN_CONFIG(0, GPIO_MODER_OUT, GPIO_OTYPER_PP, GPIO_OSPEEDR_LS, GPIO_PUPDR_PDOWN)
+							 GPIO_PORT_G GPIO_PIN_14 GPIO_ALT_SYSTEM GPIO_PIN_CONFIG(0, GPIO_MODER_OUT, GPIO_OTYPER_PP, GPIO_OSPEEDR_LS, GPIO_PUPDR_PDOWN) >;
+					};
+				};
+					
+					
+				gpio0: gpio@40020000 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40020000 0x400>;
+					interrupts = <0 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+					/*
+					pinctrl-names = "default";
+					pinctrl-0 = <&pinctrl_gpio0>;
+					*/
+				};
+				
+				gpio1: gpio@40020400 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40020400 0x400>;
+					interrupts = <1 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+				};
+				
+				gpio2: gpio@40020800 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40020800 0x400>;
+					interrupts = <2 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+				};
+				
+				gpio3: gpio@40020c00 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40020c00 0x400>;
+					interrupts = <3 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+				};
+				
+				gpio4: gpio@40021000 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40021000 0x400>;
+					interrupts = <4 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+				};
+				
+				gpio5: gpio@40021400 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40021400 0x400>;
+					interrupts = <5 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+				};
+								
+				gpio6: gpio@40021800 {
+					compatible = "stm32,stm32-gpio";
+					reg = <0x40021800 0x400>;
+					interrupts = <6 IRQ_TYPE_EDGE_FALLING 1>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					clocks = <&clks 1>;
+				};
+				
 			};
 		};
 		
